@@ -65,12 +65,18 @@ export default function ProfileSettingsPage() {
   async function saveProfile() {
     if (!profile) return
     setSaving(true)
-    const { error } = await supabase.from('profiles').update({
+    // .select().single() is required here, not cosmetic — a plain
+    // .update().eq() call reports success with zero rows changed if RLS
+    // silently excludes the row (stale id, permission mismatch, etc), so
+    // the toast would say "updated" while nothing was actually written.
+    // Only trust the toast to what the DB actually confirms back.
+    const { data, error } = await supabase.from('profiles').update({
       full_name: profile.full_name,
       phone: profile.phone,
-    }).eq('id', profile.id)
+    }).eq('id', profile.id).select().single()
     setSaving(false)
     if (error) toast.error(error.message)
+    else if (!data) toast.error('Nothing was saved — please refresh and try again.')
     else toast.success('Profile updated')
   }
 

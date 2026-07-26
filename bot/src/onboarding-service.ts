@@ -215,21 +215,32 @@ export async function nudgeMissingBusinessNames(): Promise<void> {
       const owner = (org as any).org_members?.find((m: any) => m.role === 'owner')
       if (!owner?.whatsapp_number) continue
 
-      // Don't hijack someone mid-onboarding or mid another conversation flow
+      // Don't hijack someone mid-onboarding or mid a guided setup flow.
+      // Deliberately NOT checking merge_state here — that's the low-stakes,
+      // easily-ignored "want to add your email?" prompt, and it has no
+      // timeout of its own. A user who never replies to it would otherwise
+      // be permanently excluded from ever getting this nudge (confirmed:
+      // one org sat on the placeholder name for 10+ days for exactly this
+      // reason). onboarding_step for the nudge itself is checked BEFORE
+      // merge-service's reply handling in message-handler.ts, so setting
+      // it below always wins the race regardless of a stale merge_state.
       const { data: session } = await supabase
         .from('whatsapp_sessions')
-        .select('onboarding_step, merge_state, setup_state')
+        .select('onboarding_step, setup_state')
         .eq('phone_number', owner.whatsapp_number)
         .maybeSingle()
-      if (session?.onboarding_step || session?.merge_state || session?.setup_state) continue
+      if (session?.onboarding_step || session?.setup_state) continue
 
       await sendWhatsAppMessage(
         owner.whatsapp_number,
         `Quick one — I still don't have a name for your business! What should I call it?`
       )
+      // Also clear any stale merge_state — otherwise it re-arms right after
+      // this nudge resolves and hijacks their NEXT ordinary message as if
+      // it were a reply to the old "add your email?" prompt.
       await supabase
         .from('whatsapp_sessions')
-        .update({ onboarding_step: 'nudge_business_name' })
+        .update({ onboarding_step: 'nudge_business_name', merge_state: null })
         .eq('phone_number', owner.whatsapp_number)
       await supabase
         .from('organizations')

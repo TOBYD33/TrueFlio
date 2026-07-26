@@ -75,7 +75,13 @@ export default function BusinessSettingsPage() {
   async function saveOrg() {
     if (!org || !orgId) return
     setSaving(true)
-    const { error } = await supabase.from('organizations').update({
+    // .select().single() is required here, not cosmetic — organizations'
+    // RLS only allows the owner to update it (owner_id = auth.uid()). A
+    // non-owner team member editing this page would previously see
+    // "Business profile updated" while RLS silently discarded the write
+    // (Supabase reports 0-rows-matched as success, not an error). Now a
+    // blocked write surfaces as a real error instead of a false positive.
+    const { data, error } = await supabase.from('organizations').update({
       name: org.name,
       type: org.type,
       currency: org.currency,
@@ -83,9 +89,10 @@ export default function BusinessSettingsPage() {
       bank_account_name: org.bank_account_name ?? null,
       bank_account_number: org.bank_account_number ?? null,
       bank_name: org.bank_name ?? null,
-    }).eq('id', orgId)
+    }).eq('id', orgId).select().single()
     setSaving(false)
-    if (error) toast.error(error.message)
+    if (error) toast.error("Couldn't save — " + (error.code === 'PGRST116' ? 'you may not have permission to edit this business profile.' : error.message))
+    else if (!data) toast.error('Nothing was saved — please refresh and try again.')
     else toast.success('Business profile updated')
   }
 
