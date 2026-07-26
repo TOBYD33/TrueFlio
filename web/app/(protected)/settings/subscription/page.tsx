@@ -449,7 +449,7 @@ export default function SubscriptionPage() {
 
         <div className="space-y-8">
           {/* Free / Individual / Business / Business Pro — one row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 xl:gap-8">
             <PlanCard id="free" plan={plan} cycle={cycle} upgrading={upgrading} onUpgrade={handleUpgrade} />
             <PlanCard id="individual" plan={plan} cycle={cycle} upgrading={upgrading} onUpgrade={handleUpgrade} />
             <PlanCard id="business" plan={plan} cycle={cycle} upgrading={upgrading} onUpgrade={handleUpgrade} />

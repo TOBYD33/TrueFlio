@@ -67,7 +67,7 @@ export default function AccountantAccessPage() {
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://app.gettrueflow.com'
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 max-w-2xl">
       <Card>
         <CardContent className="pt-6 space-y-4">
           <div>

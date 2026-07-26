@@ -106,7 +106,7 @@ export default function ProfileSettingsPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 max-w-2xl">
       {/* Avatar */}
       <Card>
         <CardContent className="pt-6">

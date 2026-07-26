@@ -100,7 +100,7 @@ export default async function TeamSettingsPage() {
     .single()
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 max-w-2xl">
       <div className="flex items-center justify-between">
         <div />
         <TeamActions

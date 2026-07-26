@@ -97,7 +97,7 @@ export default function BusinessSettingsPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 max-w-2xl">
       {/* Logo */}
       <Card>
         <CardContent className="pt-6">
