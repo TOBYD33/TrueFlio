@@ -40,21 +40,28 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const cookieStore = await cookies()
   const impersonationSessionId = cookieStore.get('impersonation_session_id')?.value
   let impersonationUserName: string | null = null
+  let impersonationWriteEnabled = false
 
   if (impersonationSessionId) {
     const { data: imp } = await admin
       .from('impersonation_sessions')
-      .select('target_user_id, target:profiles!target_user_id(full_name)')
+      .select('target_user_id, is_write_enabled, target:profiles!target_user_id(full_name)')
       .eq('id', impersonationSessionId)
       .eq('is_active', true)
       .single()
     impersonationUserName = (imp as any)?.target?.full_name ?? 'Unknown user'
+    impersonationWriteEnabled = (imp as any)?.is_write_enabled ?? false
   }
 
   return (
     <>
       {impersonationSessionId && impersonationUserName && (
-        <ImpersonationBanner userName={impersonationUserName} sessionId={impersonationSessionId} />
+        <ImpersonationBanner
+          userName={impersonationUserName}
+          sessionId={impersonationSessionId}
+          isWriteEnabled={impersonationWriteEnabled}
+          canElevate={adminRole === 'super'}
+        />
       )}
       <div style={impersonationSessionId ? { paddingTop: '44px' } : undefined}>
         <AdminShell role={adminRole} adminName={profile?.full_name ?? user.email ?? 'Admin'}>

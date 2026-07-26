@@ -35,11 +35,13 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   let impersonationOrgId: string | null = null
   let impersonationUserId: string | null = null
   let impersonationPhone: string | null = null
+  let impersonationWriteEnabled = false
+  let callerIsSuperAdmin = false
 
   if (impersonationSessionId) {
     const { data: imp } = await admin
       .from('impersonation_sessions')
-      .select('target_org_id, target_user_id, target:profiles!target_user_id(full_name, phone)')
+      .select('target_org_id, target_user_id, is_write_enabled, target:profiles!target_user_id(full_name, phone)')
       .eq('id', impersonationSessionId)
       .eq('is_active', true)
       .single()
@@ -50,6 +52,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       impersonationOrgId = (imp as any).target_org_id ?? null
       impersonationUserId = (imp as any).target_user_id ?? null
       impersonationPhone = target?.phone ?? null
+      impersonationWriteEnabled = (imp as any).is_write_enabled ?? false
 
       // If session has no target_org_id, look it up from the target user's org_members row
       if (!impersonationOrgId && impersonationUserId) {
@@ -62,6 +65,13 @@ export default async function ProtectedLayout({ children }: { children: React.Re
         impersonationOrgId = targetMember?.org_id ?? null
       }
     }
+
+    const { data: callerProfile } = await admin
+      .from('profiles')
+      .select('admin_role, is_super_admin')
+      .eq('id', user.id)
+      .maybeSingle()
+    callerIsSuperAdmin = (callerProfile?.admin_role ?? (callerProfile?.is_super_admin ? 'super' : null)) === 'super'
   }
 
   // Use impersonation org if active — NEVER fall back to admin's own org during impersonation
@@ -131,6 +141,8 @@ export default async function ProtectedLayout({ children }: { children: React.Re
         <ImpersonationBanner
           userName={impersonationUserName}
           sessionId={impersonationSessionId}
+          isWriteEnabled={impersonationWriteEnabled}
+          canElevate={callerIsSuperAdmin}
         />
       )}
       <div style={impersonationSessionId ? { paddingTop: '44px' } : undefined}>
