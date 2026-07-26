@@ -566,6 +566,16 @@ ${ratesForDefaultCountry.length > 0
       { phone_number: chatId, role: 'assistant', content: finalReply },
     ])
 
+    // Feed the Inactivity Re-Engagement / Daily Brief activity tracker —
+    // a real in-app Tello message counts as activity, same as a WhatsApp one.
+    // Resetting reengagement_stage here (not a separate detection step) is
+    // what implements "becoming active resets the cycle back to the start."
+    await admin.from('profiles').update({
+      last_active_at: new Date().toISOString(),
+      reengagement_stage: 0,
+      reengagement_stage_at: null,
+    }).eq('id', user.id)
+
     return NextResponse.json({ success: true, reply: finalReply })
   } catch (err) {
     console.error('chat/message: error:', err)

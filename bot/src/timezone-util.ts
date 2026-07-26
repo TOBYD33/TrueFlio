@@ -36,6 +36,13 @@ export function dateStrInTimezone(tz: string, date: Date): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
 }
 
+// 0-23 local hour in the given timezone — used by Daily Brief to fire
+// once during each user's own local send window, without hardcoding a
+// single global hour the way a naive "send at 7am" cron would.
+export function localHour(tz: string, date: Date): number {
+  return Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hour12: false }).format(date))
+}
+
 export function addDaysToDateStr(dateStr: string, days: number): string {
   const d = new Date(`${dateStr}T00:00:00Z`)
   d.setUTCDate(d.getUTCDate() + days)

@@ -80,6 +80,20 @@ export default function ProfileSettingsPage() {
     else toast.success('Profile updated')
   }
 
+  async function toggleReengagement(enabled: boolean) {
+    if (!profile) return
+    setProfile(p => p ? { ...p, reengagement_enabled: enabled } : p)
+    const { error } = await supabase.from('profiles').update({ reengagement_enabled: enabled }).eq('id', profile.id)
+    if (error) toast.error(error.message)
+  }
+
+  async function toggleDailyBrief(enabled: boolean) {
+    if (!profile) return
+    setProfile(p => p ? { ...p, daily_brief_enabled: enabled } : p)
+    const { error } = await supabase.from('profiles').update({ daily_brief_enabled: enabled }).eq('id', profile.id)
+    if (error) toast.error(error.message)
+  }
+
   async function sendPasswordReset() {
     if (!email) return
     setSendingReset(true)
@@ -156,6 +170,39 @@ export default function ProfileSettingsPage() {
           }}
         />
       )}
+
+      {/* Notification preferences — independent toggles. Neither affects
+          real transactional notifications (reminders firing, invoice
+          confirmations), which always send regardless. */}
+      <Card>
+        <CardContent className="pt-6 space-y-4">
+          <h3 className="font-medium text-gray-900">Notifications</h3>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={profile?.reengagement_enabled ?? true}
+              onChange={e => toggleReengagement(e.target.checked)}
+            />
+            <span>
+              <span className="text-sm text-gray-900 block">Re-engagement nudges</span>
+              <span className="text-xs text-gray-500">A gentle check-in if you've gone quiet for a while, with anything real that's waiting for you.</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={profile?.daily_brief_enabled ?? true}
+              onChange={e => toggleDailyBrief(e.target.checked)}
+            />
+            <span>
+              <span className="text-sm text-gray-900 block">Daily Brief</span>
+              <span className="text-xs text-gray-500">A short daily snapshot of today's reminders, invoices, and tax status.</span>
+            </span>
+          </label>
+        </CardContent>
+      </Card>
 
       {/* Password */}
       <Card>

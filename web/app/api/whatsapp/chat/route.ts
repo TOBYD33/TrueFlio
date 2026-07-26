@@ -117,6 +117,15 @@ export async function POST(req: NextRequest) {
       .update({ last_active_at: new Date().toISOString() })
       .eq('phone_number', phoneNumber)
 
+    // Feed the Inactivity Re-Engagement / Daily Brief activity tracker.
+    // Resetting reengagement_stage here (not a separate detection step) is
+    // what implements "becoming active resets the cycle back to the start."
+    await admin.from('profiles').update({
+      last_active_at: new Date().toISOString(),
+      reengagement_stage: 0,
+      reengagement_stage_at: null,
+    }).eq('id', user.id)
+
     return NextResponse.json({ success: true, reply })
   } catch (err) {
     console.error('whatsapp/chat: error:', err)

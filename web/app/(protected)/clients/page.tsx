@@ -18,6 +18,7 @@ import { UserPlus, Search, Phone, Mail, ChevronRight, IdCard } from 'lucide-reac
 import { toast } from 'sonner'
 import { usePageTools } from '@/components/shared/PageTools'
 import { clientLimitFor } from '@/lib/plans'
+import { touchActivity } from '@/lib/activity'
 
 export default function ClientsPage() {
   const supabase = createClient()
@@ -147,6 +148,7 @@ export default function ClientsPage() {
     setAddOpen(false)
     setForm({ name: '', phone: '', email: '', address: '', notes: '', source: '', isPaying: false, birthdayMonth: '', birthdayDay: '', birthdayYear: '' })
     toast.success('Client added')
+    touchActivity()
   }
 
   const statusColor = (s: string) =>

@@ -24,6 +24,9 @@ export interface Profile {
   full_name: string | null
   phone: string | null
   avatar_url: string | null
+  last_active_at?: string | null
+  reengagement_enabled?: boolean
+  daily_brief_enabled?: boolean
   created_at: string
   updated_at?: string
 }

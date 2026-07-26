@@ -11,7 +11,10 @@
 
 import { sendWhatsAppMessage } from './twilio-sender'
 
-async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+// Exported for other proactive-notification features (Inactivity
+// Re-Engagement, Daily Brief) that need fully-dynamic email content —
+// this is now the ONE Resend-sending helper in the bot, don't add another.
+export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   if (!process.env.RESEND_API_KEY) return false
   try {
     const res = await fetch('https://api.resend.com/emails', {

@@ -31,6 +31,7 @@ export function TelloBubble({ userId, orgId, isFirstTime }: TelloBubbleProps) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [welcomePlayed, setWelcomePlayed] = useState(false)
+  const [unreadNudges, setUnreadNudges] = useState<{ id: string; content: string }[]>([])
 
   const hasAutoOpenedRef = useRef(false)
   const wordIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -76,6 +77,17 @@ export function TelloBubble({ userId, orgId, isFirstTime }: TelloBubbleProps) {
         try { sessionStorage.setItem(SESSION_KEY_WELCOME, fallback) } catch { /* noop */ }
       })
   }, [userId, orgId, isFirstTime])
+
+  // Check for unread proactive nudges (Inactivity Re-Engagement / Daily
+  // Brief) once per mount — "next time they open the app," not a live push.
+  useEffect(() => {
+    fetch('/api/tello/unread')
+      .then(r => r.json())
+      .then((data: { messages?: { id: string; content: string }[] }) => {
+        setUnreadNudges(data.messages ?? [])
+      })
+      .catch(() => {})
+  }, [])
 
   // Once we have a welcome message, pulse then auto-open
   useEffect(() => {
@@ -128,6 +140,23 @@ export function TelloBubble({ userId, orgId, isFirstTime }: TelloBubbleProps) {
       if (wordIntervalRef.current) clearInterval(wordIntervalRef.current)
     }
   }, [isOpen, welcomeMessage, welcomePlayed, scrollToBottom])
+
+  // Append any unread proactive nudges (Inactivity Re-Engagement / Daily
+  // Brief) exactly once, whenever the welcome message has finished playing
+  // AND we know about unread nudges — whichever of those two resolves
+  // last. Runs after welcomePlayed so it never gets wiped by the welcome
+  // effect's setMessages([...]) call, and works whether this is the very
+  // first open this session or a later one.
+  const nudgesAppendedRef = useRef(false)
+  useEffect(() => {
+    if (!welcomePlayed || nudgesAppendedRef.current || unreadNudges.length === 0) return
+    nudgesAppendedRef.current = true
+    setMessages(existing => [
+      ...existing,
+      ...unreadNudges.map(n => ({ role: 'assistant' as const, content: n.content })),
+    ])
+    fetch('/api/tello/unread', { method: 'POST' }).catch(() => {})
+  }, [welcomePlayed, unreadNudges])
 
   // Focus input when panel opens after welcome finishes
   useEffect(() => {
@@ -404,6 +433,23 @@ export function TelloBubble({ userId, orgId, isFirstTime }: TelloBubbleProps) {
             >Send</button>
           </div>
         </div>
+      )}
+
+      {/* Unread proactive-nudge indicator — cleared the moment the bubble opens */}
+      {!isOpen && unreadNudges.length > 0 && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '72px',
+            right: '20px',
+            width: '14px',
+            height: '14px',
+            borderRadius: '50%',
+            background: '#FF6B6B',
+            border: '2px solid #0A0A0F',
+            zIndex: 1002,
+          }}
+        />
       )}
 
       {/* The bubble itself */}

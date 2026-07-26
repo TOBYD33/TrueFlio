@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { ArrowLeft, CheckCircle, Download, Send, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { touchActivity } from '@/lib/activity'
 
 interface LineItem { description: string; quantity: number; unit_price: number; total: number }
 interface BankDetails { bank_account_name: string | null; bank_account_number: string | null; bank_name: string | null }
@@ -65,6 +66,7 @@ export default function InvoiceDetailPage() {
 
         const { data } = await supabase.from('invoices').select('*, clients(name, email)').eq('id', invoiceId).single()
         setInvoice(data as unknown as Invoice)
+        touchActivity()
       } finally {
         setLoading(false)
       }

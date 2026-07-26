@@ -45,6 +45,18 @@ export async function getOrCreateUser(phoneNumber: string): Promise<UserContext 
         .eq('phone_number', phoneNumber)
     }
 
+    // Feed the Inactivity Re-Engagement / Daily Brief activity tracker —
+    // ANY WhatsApp message counts, not just ones that reach a full reply.
+    // Resetting reengagement_stage here (not in a separate detection step)
+    // is what implements "becoming active resets the cycle back to the
+    // start" — the very next lapse starts again at 24h.
+    supabase.from('profiles').update({
+      last_active_at: new Date().toISOString(),
+      reengagement_stage: 0,
+      reengagement_stage_at: null,
+    }).eq('id', resolvedUserId)
+      .then(({ error }) => { if (error) console.error('user-service: last_active_at update failed:', error) })
+
     const { data: member } = await supabase
       .from('org_members')
       .select('role, whatsapp_active, can_see_clients, can_see_income, can_export')

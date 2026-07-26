@@ -6,6 +6,8 @@ import { fireDueReminders, fireAdvanceReminders } from './reminder-service'
 import { sendWeeklySummaries, sendMonthlyReports } from './report-service'
 import { checkBudgetAlerts } from './budget-service'
 import { nudgeMissingBusinessNames } from './onboarding-service'
+import { runInactivityReengagement } from './reengagement-service'
+import { runDailyBrief } from './daily-brief-service'
 
 export function startScheduler() {
   // Fire due reminders — every minute, so timed reminders (e.g. 8:30 PM)
@@ -27,6 +29,15 @@ export function startScheduler() {
   // Backfill nudge for orgs still stuck on the placeholder business name —
   // once daily, 10am WAT (9am UTC)
   cron.schedule('0 9 * * *', () => nudgeMissingBusinessNames(), { timezone: 'UTC' })
+
+  // Inactivity Re-Engagement — hourly, for tighter precision on the 24h
+  // threshold than a once-daily check would give (each run is a cheap
+  // no-op for anyone not yet due).
+  cron.schedule('0 * * * *', () => runInactivityReengagement(), { timezone: 'UTC' })
+
+  // Daily Brief — hourly, checks each user's own local hour and only acts
+  // during their configured send window (see DAILY_BRIEF_LOCAL_HOUR).
+  cron.schedule('0 * * * *', () => runDailyBrief(), { timezone: 'UTC' })
 
   console.log('TrueFlow scheduler running ✅')
 }
