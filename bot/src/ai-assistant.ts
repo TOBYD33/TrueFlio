@@ -49,6 +49,14 @@ When the user wants to set a budget, set a reminder, or export a PDF,
 include the relevant ACTION tag on a new line at the very end of your reply.
 The user never sees ACTION tags — they are stripped before sending.
 
+Only emit actions for what THIS message is actually asking for — never
+re-emit an action tag for something already completed in an earlier turn,
+even if it's mentioned in the conversation history above (e.g. summarizing
+or referencing a client's saved birthday is NOT a reason to emit
+SET_CLIENT_BIRTHDAY again). Never include the same action tag more than
+once in a single reply — one reminder request means exactly one
+ACTION:SET_REMINDER line, never several.
+
 IMPORTANT — for ACTION:SET_BUDGET, ACTION:SET_REMINDER, and ACTION:SET_TAX_REMINDER
 specifically: do NOT write your own "Got it ✅" confirmation with the saved
 date, time, or amount. The system verifies the database write actually
@@ -414,10 +422,16 @@ ${defaultCountryEstimates.filter(Boolean).length > 0
 
   const fullReply = response.content[0].type === 'text' ? response.content[0].text : ''
 
-  // Parse ACTION tags
+  // Parse ACTION tags. De-duped (exact string match) as a hard backstop —
+  // a model hiccup or confused context can still emit the same action tag
+  // more than once in a single reply (confirmed: three identical
+  // ACTION:SET_REMINDER lines for one request produced three duplicate
+  // "not available on Free plan" notices in one message). Executing the
+  // same write twice is never correct, so this is safe regardless of why
+  // the duplicate appeared, on top of the prompt instruction above.
   const lines = fullReply.split('\n')
   const actionLines = lines.filter(l => l.trim().startsWith('ACTION:'))
-  const actions = actionLines.map(l => l.trim().replace('ACTION:', ''))
+  const actions = [...new Set(actionLines.map(l => l.trim().replace('ACTION:', '')))]
   const cleanReply = lines.filter(l => !l.trim().startsWith('ACTION:')).join('\n').trim()
 
   // Save to conversation history

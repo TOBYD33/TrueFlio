@@ -421,10 +421,13 @@ export async function handleMessage(body: TwilioWebhookBody): Promise<string> {
     // any action fails this turn, that free-text reply can no longer be
     // trusted for what it says about the action — send the honest,
     // execution-verified result instead of compounding a false confirmation.
+    // De-duped as a second backstop (ai-assistant.ts already dedupes the
+    // raw action tags) — never show the same notification/failure line
+    // twice in one message.
     if (failures.length > 0) {
-      finalReply = [...failures, ...notifications].filter(Boolean).join('\n\n')
+      finalReply = [...new Set([...failures, ...notifications])].filter(Boolean).join('\n\n')
     } else if (notifications.length > 0) {
-      finalReply = [reply, ...notifications].filter(Boolean).join('\n\n')
+      finalReply = [reply, ...new Set(notifications)].filter(Boolean).join('\n\n')
     }
   }
 
