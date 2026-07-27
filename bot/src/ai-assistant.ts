@@ -120,6 +120,16 @@ ACTION:SET_CLIENT_BIRTHDAY:{clientName}:{month}:{day}
    "March 5th" → 3:5. This automatically creates three reminders — 1 month,
    1 week, and 1 day before — recurring every year, you don't compute those
    yourself.)
+ACTION:UNRECOGNIZED_INTENT
+  (Emit this ONLY when the user's message doesn't match ANY capability
+   above and you genuinely can't help with it as asked — e.g. it's
+   nonsensical, garbled (including a bad voice-transcription result), or
+   about something TrueFlow doesn't do. The system appends relevant
+   examples after your reply automatically, so keep your own reply brief —
+   a short, warm acknowledgment, not an apology or a list of what you can
+   do yourself. Never emit this alongside a real action for the same
+   message — if you understood enough to take an action, don't also emit
+   this.)
 
 recurrence values: once | daily | weekly | monthly | yearly
 period values for GET_TAX_ESTIMATE: this_month | last_month | this_quarter | this_year

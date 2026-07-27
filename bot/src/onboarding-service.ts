@@ -119,7 +119,8 @@ export async function handleOnboardingReply(
       reply:
         `${businessName} ✅\n\nHere's what we can do together:\n${capabilityList(true)}\n\n` +
         `Let's try it. Got a receipt handy? Send a photo.\n\n` +
-        `No receipt nearby? Tell me something to remind you about instead, like 'remind me to pay rent Friday.'`,
+        `No receipt nearby? Tell me something to remind you about instead, like 'remind me to pay rent Friday.'\n\n` +
+        `(You can always type "help" to see examples of what to say.)`,
     }
   }
 

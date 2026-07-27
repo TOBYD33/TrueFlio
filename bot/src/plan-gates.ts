@@ -33,6 +33,14 @@ export function canUseAutomatedReminders(rawPlan: string | null | undefined): bo
   return resolvePlan(rawPlan) !== 'free'
 }
 
+// Business (Starter) is explicitly, permanently blocked from inviting ANY
+// team member — that's Business Pro's defining upsell. Only Business Pro/
+// Enterprise can add team members.
+export function canInviteTeamMembers(rawPlan: string | null | undefined): boolean {
+  const plan = resolvePlan(rawPlan)
+  return plan === 'business_pro' || plan === 'enterprise'
+}
+
 // ── WhatsApp automation trial window (Free plan only) ────────────────────
 // Mirrors web/lib/plans.ts's WHATSAPP_TRIAL_DAYS / WHATSAPP_TRIAL_ENFORCEMENT_START
 // exactly — update both together. Grandfathers every org created before the

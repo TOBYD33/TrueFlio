@@ -154,6 +154,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
             userId={user.id}
             orgId={orgId}
             isFirstTime={isFirstTime}
+            plan={plan}
           />
         )}
       </div>

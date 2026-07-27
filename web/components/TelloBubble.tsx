@@ -6,11 +6,14 @@
 // calling /api/chat/message for all subsequent conversation.
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { visibleCategories } from '@/lib/prompt-examples'
+import { canInviteTeamMembers } from '@/lib/plans'
 
 interface TelloBubbleProps {
   userId: string
   orgId: string
   isFirstTime: boolean
+  plan?: string | null
 }
 
 interface Message {
@@ -21,7 +24,7 @@ interface Message {
 const SESSION_KEY_OPENED = 'tello_auto_opened'
 const SESSION_KEY_WELCOME = 'tello_welcome_msg'
 
-export function TelloBubble({ userId, orgId, isFirstTime }: TelloBubbleProps) {
+export function TelloBubble({ userId, orgId, isFirstTime, plan }: TelloBubbleProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isPulsing, setIsPulsing] = useState(false)
   const [welcomeMessage, setWelcomeMessage] = useState('')
@@ -367,6 +370,52 @@ export function TelloBubble({ userId, orgId, isFirstTime }: TelloBubbleProps) {
                 {msg.content}
               </div>
             ))}
+
+            {/* Example cards (Requirement 4) — shown only before the user
+                has sent their own first message this session, so they
+                don't clutter an active conversation. Tapping fills the
+                input rather than sending, since the user may just want to
+                see the format before editing in their own details. */}
+            {showMessages && !messages.some(m => m.role === 'user') && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Try asking Tello
+                </div>
+                {visibleCategories(canInviteTeamMembers(plan)).map(cat => (
+                  <div key={cat.id}>
+                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', marginBottom: '5px' }}>
+                      {cat.emoji} {cat.label}
+                    </div>
+                    {cat.instructionOverride ? (
+                      <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', fontStyle: 'italic' }}>
+                        {cat.instructionOverride}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        {cat.examples.map(ex => (
+                          <button
+                            key={ex}
+                            onClick={() => { setInput(ex); setTimeout(() => inputRef.current?.focus(), 0) }}
+                            style={{
+                              textAlign: 'left',
+                              background: 'rgba(108,99,255,0.08)',
+                              border: '1px solid rgba(108,99,255,0.18)',
+                              borderRadius: '10px',
+                              padding: '8px 11px',
+                              fontSize: '12.5px',
+                              color: '#C9C5FF',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            "{ex}"
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Typing indicator while waiting for Tello response */}
             {sending && (

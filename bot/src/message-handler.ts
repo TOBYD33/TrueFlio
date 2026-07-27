@@ -11,7 +11,11 @@
 //   4. Free plan's WhatsApp automation trial window expired
 
 import { getOrCreateUser, isNewUser, markUserNotNew, getMonthlyReceiptCount, findPendingInvite } from './user-service'
-import { canUseWhatsAppAutomation } from './plan-gates'
+import { canUseWhatsAppAutomation, canInviteTeamMembers } from './plan-gates'
+import {
+  isHelpCommand, buildHelpMenu, resolveHelpMenuSelection,
+  getPendingHelpMenu, startHelpMenu, clearHelpMenu, buildFallbackExamplesReply,
+} from './prompt-examples-whatsapp'
 import { analyzeImage, buildMissingFieldsNote } from './image-analyzer'
 import { handleIncomingPayment } from './smart-transfer'
 import { saveFromAnalysis } from './receipt-scanner'
@@ -251,6 +255,29 @@ export async function handleMessage(body: TwilioWebhookBody): Promise<string> {
     }
   }
 
+  // ── Step 2b3: Pending help-menu number selection, or a fresh "help" /
+  // "examples" request — checked before AI routing so it works with zero
+  // API cost and never depends on Claude recognizing it.
+  if (!hasImage && messageText) {
+    const pendingCategories = await getPendingHelpMenu(phoneNumber)
+    if (pendingCategories) {
+      const selectionReply = resolveHelpMenuSelection(messageText, pendingCategories)
+      if (selectionReply) {
+        await clearHelpMenu(phoneNumber)
+        return await deliverAndCloseOut(selectionReply)
+      }
+      // Not a valid number for the menu they were just shown — fall
+      // through to normal handling rather than getting stuck here forever.
+      await clearHelpMenu(phoneNumber)
+    }
+
+    if (isHelpCommand(messageText)) {
+      const { text, categories } = buildHelpMenu(canInviteTeamMembers(user.plan))
+      await startHelpMenu(phoneNumber, categories)
+      return await deliverAndCloseOut(text)
+    }
+  }
+
   // ── Step 2c: Identity-merge conversation (post-onboarding, optional) ─────
   // Watches for an email reply to the link offer (either the standalone
   // 'offered' prompt or the finalized onboarding's 'onboarding_email'
@@ -411,10 +438,20 @@ export async function handleMessage(body: TwilioWebhookBody): Promise<string> {
     userPermissions,
   })
 
+  // ── Step 4b: Reactive example fallback (Requirement 2) — Claude emits
+  // ACTION:UNRECOGNIZED_INTENT when it can't map the message to any known
+  // capability. Applies identically to typed text and voice transcripts,
+  // since both reach here through the exact same pipeline (see webhook.ts).
+  const hadUnrecognizedIntent = actions.includes('UNRECOGNIZED_INTENT')
+  const realActions = actions.filter(a => a !== 'UNRECOGNIZED_INTENT')
+
   // ── Step 5: Execute any actions Claude detected ───────────────────────────
   let finalReply = reply
-  if (actions.length > 0) {
-    const { notifications, failures } = await executeActions(actions, user)
+  if (hadUnrecognizedIntent) {
+    finalReply = [reply, buildFallbackExamplesReply(messageText)].filter(Boolean).join('\n\n')
+  }
+  if (realActions.length > 0) {
+    const { notifications, failures } = await executeActions(realActions, user)
 
     // Claude's own reply text is generated BEFORE any write happens, so it
     // can (and did) claim success for actions that actually failed. Once
