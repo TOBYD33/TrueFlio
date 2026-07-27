@@ -9,7 +9,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { SELF_SERVE_PLAN_IDS, PLAN_CONFIG, PlanId } from '@/lib/plans'
+import { SELF_SERVE_PLAN_IDS, PlanId, BillingCycle } from '@/lib/plans'
+import { fetchPlanDefinition } from '@/lib/plans-db'
 
 function getAdmin() {
   return createClient(
@@ -34,7 +35,7 @@ async function verifyTransaction(transactionId: string): Promise<Record<string, 
 async function sendAndreaWhatsApp(
   admin: ReturnType<typeof getAdmin>,
   orgId: string,
-  planId: string,
+  planLabel: string,
   andreaAmount: number,
   lifetimeTotal: number
 ) {
@@ -53,7 +54,6 @@ async function sendAndreaWhatsApp(
     const fromNumber = process.env.TWILIO_WHATSAPP_NUMBER ?? 'whatsapp:+14155238886'
     if (!twilioSid || !twilioToken) return
 
-    const planLabel = PLAN_CONFIG[planId as PlanId]?.label ?? planId
     const fmt = (n: number) => `₦${n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
     const body =
@@ -129,16 +129,35 @@ export async function POST(req: NextRequest) {
       }
 
       if (orgId && planId && SELF_SERVE_PLAN_IDS.includes(planId as PlanId)) {
-        const config = PLAN_CONFIG[planId as PlanId]
-        await admin.from('organizations').update({
-          plan: planId,
-          paystack_subscription_status: 'active',
-          receipt_limit: config.scanLimit,
-          client_limit: config.clientLimit,
-        }).eq('id', orgId)
+        const planDef = await fetchPlanDefinition(planId)
+        if (!planDef) {
+          console.warn(`flutterwave/webhook: unknown plan_id ${planId}, skipping activation`)
+          return NextResponse.json({ received: true })
+        }
 
         // Flutterwave sends amount in NGN directly (not kobo)
         const paymentAmount = Number(verified.amount ?? data.amount ?? 0)
+
+        // subscribed_price_ngn/cycle/at are set ONCE here and never touched
+        // by anything else — this is what "Current plan" displays on
+        // Settings -> Subscription, deliberately never the live
+        // plan_definitions price, so a later admin price change can never
+        // silently reprice what this org sees as their own price. This is
+        // the secondary/backup activation path — verify-redirect is
+        // primary and normally sets this first, but this must stay
+        // consistent in case the webhook fires first or alone.
+        const cycle: BillingCycle = meta?.billing_cycle === 'quarterly' || meta?.billing_cycle === 'yearly' ? meta.billing_cycle as BillingCycle : 'monthly'
+
+        await admin.from('organizations').update({
+          plan: planId,
+          paystack_subscription_status: 'active',
+          receipt_limit: planDef.scanLimit,
+          client_limit: planDef.clientLimit,
+          subscribed_price_ngn: paymentAmount || planDef.monthlyNgn,
+          subscribed_cycle: cycle,
+          subscribed_at: new Date().toISOString(),
+        }).eq('id', orgId)
+
         if (paymentAmount > 0) {
           const andreaAmount = Math.round(paymentAmount * 0.02 * 100) / 100
           const now = new Date()
@@ -157,7 +176,7 @@ export async function POST(req: NextRequest) {
             .eq('org_id', orgId)
           const lifetimeTotal = (contribs ?? []).reduce((s: number, r: any) => s + Number(r.amount), 0)
 
-          await sendAndreaWhatsApp(admin, orgId, planId, andreaAmount, lifetimeTotal)
+          await sendAndreaWhatsApp(admin, orgId, planDef.label, andreaAmount, lifetimeTotal)
         }
 
         // Mark this event as processed using the row ID we captured on insert

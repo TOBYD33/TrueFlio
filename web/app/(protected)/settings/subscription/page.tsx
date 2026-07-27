@@ -13,9 +13,20 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Check, X, Heart, Sparkles, Zap, User, Briefcase, Users } from 'lucide-react'
 import {
-  PLAN_CONFIG, resolvePlan, PlanId, BillingCycle, priceForCycle,
-  QUARTERLY_DISCOUNT_PCT, YEARLY_DISCOUNT_PCT, canUseWhatsAppAutomation, WHATSAPP_TRIAL_DAYS,
+  PLAN_CONFIG, resolvePlan, PlanId, PlanConfig, BillingCycle,
+  QUARTERLY_DISCOUNT_PCT as STATIC_QUARTERLY_PCT, YEARLY_DISCOUNT_PCT as STATIC_YEARLY_PCT,
+  canUseWhatsAppAutomation, WHATSAPP_TRIAL_DAYS,
 } from '@/lib/plans'
+
+const FALLBACK_PLANS: PlanConfig[] = ['free', 'individual', 'business', 'business_pro'].map(id => PLAN_CONFIG[id as PlanId])
+const FALLBACK_DISCOUNTS = { quarterlyDiscountPct: STATIC_QUARTERLY_PCT, yearlyDiscountPct: STATIC_YEARLY_PCT }
+
+function priceForCycleLocal(monthlyNgn: number, cycle: BillingCycle, discounts: { quarterlyDiscountPct: number; yearlyDiscountPct: number }): number {
+  if (monthlyNgn <= 0) return monthlyNgn
+  if (cycle === 'quarterly') return Math.round(monthlyNgn * 3 * (1 - discounts.quarterlyDiscountPct / 100))
+  if (cycle === 'yearly') return Math.round(monthlyNgn * 12 * (1 - discounts.yearlyDiscountPct / 100))
+  return monthlyNgn
+}
 
 function AndreaSection({ orgId }: { orgId: string | null }) {
   const supabase = createClient()
@@ -102,12 +113,9 @@ function AndreaSection({ orgId }: { orgId: string | null }) {
   )
 }
 
-function formatPrice(monthlyNgn: number, cycle: BillingCycle): string {
+function formatPrice(monthlyNgn: number): string {
   if (monthlyNgn === -1) return 'Custom'
-  if (monthlyNgn === 0) return '₦0'
-  const price = priceForCycle(monthlyNgn, cycle)
-  const suffix = cycle === 'quarterly' ? '/quarter' : cycle === 'yearly' ? '/year' : '/month'
-  return `₦${price.toLocaleString('en-NG')}${suffix}`
+  return `₦${monthlyNgn.toLocaleString('en-NG')}`
 }
 
 // Split into amount + suffix, rendered as two separately-sized spans — a
@@ -115,18 +123,19 @@ function formatPrice(monthlyNgn: number, cycle: BillingCycle): string {
 // browser to wrap at, so on a narrow card it silently overflows the
 // border instead of wrapping. Splitting it also reads closer to the
 // reference style ("$12 /per month").
-function formatPriceParts(monthlyNgn: number, cycle: BillingCycle): { amount: string; suffix: string } {
+function formatPriceParts(
+  monthlyNgn: number, cycle: BillingCycle, discounts: { quarterlyDiscountPct: number; yearlyDiscountPct: number }
+): { amount: string; suffix: string } {
   if (monthlyNgn === -1) return { amount: 'Custom', suffix: '' }
   if (monthlyNgn === 0) return { amount: '₦0', suffix: '' }
-  const price = priceForCycle(monthlyNgn, cycle)
+  const price = priceForCycleLocal(monthlyNgn, cycle, discounts)
   const suffix = cycle === 'quarterly' ? '/quarter' : cycle === 'yearly' ? '/year' : '/month'
   return { amount: `₦${price.toLocaleString('en-NG')}`, suffix }
 }
 
 // Feature row values, human-readable per the ticket's Active/Inactive/Basic/
 // Advanced/count language — not a generic numeric limit table.
-function planFeatureRows(id: PlanId): { label: string; value: string; ok: boolean }[] {
-  const c = PLAN_CONFIG[id]
+function planFeatureRows(c: PlanConfig): { label: string; value: string; ok: boolean }[] {
   return [
     { label: 'WhatsApp Automation', value: 'Active', ok: true },
     {
@@ -159,11 +168,19 @@ const PLAN_ICONS: Record<PlanId, { Icon: typeof Zap; bg: string; color: string }
   enterprise: { Icon: Sparkles, bg: 'bg-[#6C63FF]/10', color: '#6C63FF' },
 }
 
-function BillingToggle({ cycle, onChange }: { cycle: BillingCycle; onChange: (c: BillingCycle) => void }) {
+const DEFAULT_ICON = { Icon: Sparkles, bg: 'bg-gray-100', color: '#6b7280' }
+
+function BillingToggle({
+  cycle, onChange, discounts,
+}: {
+  cycle: BillingCycle
+  onChange: (c: BillingCycle) => void
+  discounts: { quarterlyDiscountPct: number; yearlyDiscountPct: number }
+}) {
   const options: { value: BillingCycle; label: string }[] = [
     { value: 'monthly', label: 'Monthly' },
-    { value: 'quarterly', label: `Quarterly (save ${QUARTERLY_DISCOUNT_PCT}%)` },
-    { value: 'yearly', label: `Yearly (save ${YEARLY_DISCOUNT_PCT}%)` },
+    { value: 'quarterly', label: `Quarterly (save ${discounts.quarterlyDiscountPct}%)` },
+    { value: 'yearly', label: `Yearly (save ${discounts.yearlyDiscountPct}%)` },
   ]
   return (
     <div className="inline-flex flex-wrap items-center gap-1 p-1 rounded-xl bg-gray-100">
@@ -183,18 +200,19 @@ function BillingToggle({ cycle, onChange }: { cycle: BillingCycle; onChange: (c:
 }
 
 function PlanCard({
-  id, plan, cycle, upgrading, onUpgrade,
+  config: c, plan, cycle, discounts, upgrading, onUpgrade,
 }: {
-  id: PlanId
+  config: PlanConfig
   plan: string
   cycle: BillingCycle
+  discounts: { quarterlyDiscountPct: number; yearlyDiscountPct: number }
   upgrading: string | null
-  onUpgrade: (id: PlanId) => void
+  onUpgrade: (id: string) => void
 }) {
-  const c = PLAN_CONFIG[id]
+  const id = c.id
   const isCurrent = resolvePlan(plan) === id
-  const { Icon, bg, color } = PLAN_ICONS[id]
-  const price = formatPriceParts(c.monthlyNgn, cycle)
+  const { Icon, bg, color } = PLAN_ICONS[id as PlanId] ?? DEFAULT_ICON
+  const price = formatPriceParts(c.monthlyNgn, cycle, discounts)
 
   return (
     <div
@@ -246,7 +264,7 @@ function PlanCard({
 
       {/* Feature checklist */}
       <div className="space-y-3.5 flex-1">
-        {planFeatureRows(id).map(row => (
+        {planFeatureRows(c).map(row => (
           <div key={row.label} className="flex items-center gap-2 text-xs">
             {row.ok ? <Check size={13} className="text-[#00A88A] shrink-0" /> : <X size={13} className="text-gray-300 shrink-0" />}
             <span className={`flex-1 min-w-0 ${row.ok ? 'text-gray-700' : 'text-gray-400'}`}>{row.label}</span>
@@ -261,7 +279,9 @@ function PlanCard({
 // Enterprise is deliberately NOT the feature-checklist card style above —
 // it reads like the Andrea Aid card below it (icon, prose, one CTA), since
 // "everything, custom-priced" doesn't fit a feature-by-feature comparison.
-function EnterpriseCard() {
+function EnterpriseCard({ config }: { config?: PlanConfig }) {
+  const label = config?.displayLabel ?? 'Enterprise'
+  const tagline = config?.tagline ?? 'Custom pricing, built around your organisation'
   return (
     <Card className="border-[#6C63FF]/30">
       <CardContent className="pt-6">
@@ -270,8 +290,8 @@ function EnterpriseCard() {
             <Sparkles size={16} className="text-[#6C63FF]" />
           </div>
           <div>
-            <p className="font-semibold text-gray-900">Enterprise</p>
-            <p className="text-xs text-gray-500 mt-0.5">Custom pricing, built around your organisation</p>
+            <p className="font-semibold text-gray-900">{label}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{tagline}</p>
           </div>
         </div>
 
@@ -298,18 +318,40 @@ export default function SubscriptionPage() {
   const { orgId } = useViewingContext()
   const [plan, setPlan] = useState('free')
   const [orgCreatedAt, setOrgCreatedAt] = useState<string | null>(null)
+  // Locked-in price/cycle from the org's own row — set ONCE at activation
+  // (see Flutterwave webhook/verify-redirect) and never recomputed from
+  // live plan_definitions. This is THE safety mechanism for "existing
+  // subscribers are never silently repriced": "Current plan" below reads
+  // these columns, never the live catalogue price.
+  const [subscribedPriceNgn, setSubscribedPriceNgn] = useState<number | null>(null)
+  const [subscribedCycle, setSubscribedCycle] = useState<BillingCycle>('monthly')
   const [receiptCount, setReceiptCount] = useState(0)
   const [clientCount, setClientCount] = useState(0)
   const [staffCount, setStaffCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [cycle, setCycle] = useState<BillingCycle>('monthly')
+  const [plans, setPlans] = useState<PlanConfig[]>(FALLBACK_PLANS)
+  const [enterprisePlan, setEnterprisePlan] = useState<PlanConfig | undefined>(PLAN_CONFIG.enterprise)
+  const [discounts, setDiscounts] = useState(FALLBACK_DISCOUNTS)
+
+  useEffect(() => {
+    fetch('/api/plans')
+      .then(r => r.json())
+      .then((data: { plans?: PlanConfig[]; discounts?: typeof FALLBACK_DISCOUNTS }) => {
+        if (!data.plans || data.plans.length === 0) return // keep fallback on empty/error response
+        setPlans(data.plans.filter(p => p.id !== 'enterprise'))
+        setEnterprisePlan(data.plans.find(p => p.id === 'enterprise'))
+        if (data.discounts) setDiscounts(data.discounts)
+      })
+      .catch(() => { /* keep static fallback */ })
+  }, [])
 
   useEffect(() => {
     if (!orgId) return
     async function load() {
       try {
         const [{ data: org }, { count: rc }, { count: cc }, { count: sc }] = await Promise.all([
-          supabase.from('organizations').select('plan, created_at').eq('id', orgId).single(),
+          supabase.from('organizations').select('plan, created_at, subscribed_price_ngn, subscribed_cycle').eq('id', orgId).single(),
           supabase.from('receipts').select('*', { count: 'exact', head: true }).eq('org_id', orgId),
           supabase.from('clients').select('*', { count: 'exact', head: true }).eq('org_id', orgId),
           supabase.from('org_members').select('*', { count: 'exact', head: true }).eq('org_id', orgId),
@@ -317,6 +359,8 @@ export default function SubscriptionPage() {
 
         if (org?.plan) setPlan(resolvePlan(org.plan))
         setOrgCreatedAt(org?.created_at ?? null)
+        setSubscribedPriceNgn(org?.subscribed_price_ngn ?? null)
+        setSubscribedCycle((org?.subscribed_cycle as BillingCycle) ?? 'monthly')
         setReceiptCount(rc ?? 0)
         setClientCount(cc ?? 0)
         setStaffCount(sc ?? 0)
@@ -327,10 +371,10 @@ export default function SubscriptionPage() {
     load()
   }, [orgId])
 
-  const currentPlan = PLAN_CONFIG[resolvePlan(plan)]
+  const currentPlan = plans.find(p => p.id === resolvePlan(plan)) ?? enterprisePlan ?? PLAN_CONFIG[resolvePlan(plan)]
   const [upgrading, setUpgrading] = useState<string | null>(null)
 
-  async function handleUpgrade(planId: PlanId) {
+  async function handleUpgrade(planId: string) {
     setUpgrading(planId)
     try {
       const res = await fetch('/api/flutterwave/initialize', {
@@ -415,7 +459,14 @@ export default function SubscriptionPage() {
             <div>
               <p className="text-sm text-gray-500">Current plan</p>
               <p className="text-2xl font-bold text-gray-900 mt-0.5">{currentPlan.displayLabel}</p>
-              <p className="text-lg text-[#00A88A] font-semibold mt-0.5">{formatPrice(currentPlan.monthlyNgn, 'monthly')}</p>
+              <p className="text-lg text-[#00A88A] font-semibold mt-0.5">
+                {/* Locked-in price the org actually pays — NEVER the live
+                    catalogue price, which may have changed since they
+                    subscribed. Free has no lock-in (always ₦0). */}
+                {subscribedPriceNgn != null
+                  ? `${formatPrice(subscribedPriceNgn)}${subscribedCycle === 'quarterly' ? '/quarter' : subscribedCycle === 'yearly' ? '/year' : '/month'}`
+                  : formatPrice(currentPlan.monthlyNgn)}
+              </p>
             </div>
             <Badge className="bg-[#00D4AA]/10 text-[#00A88A] border-0 text-xs uppercase tracking-wide">
               {loading ? '…' : currentPlan.label}
@@ -444,20 +495,19 @@ export default function SubscriptionPage() {
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <h3 className="text-sm font-semibold text-gray-700">All Plans</h3>
-          <BillingToggle cycle={cycle} onChange={setCycle} />
+          <BillingToggle cycle={cycle} onChange={setCycle} discounts={discounts} />
         </div>
 
         <div className="space-y-8">
           {/* Free / Individual / Business / Business Pro — one row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 xl:gap-8">
-            <PlanCard id="free" plan={plan} cycle={cycle} upgrading={upgrading} onUpgrade={handleUpgrade} />
-            <PlanCard id="individual" plan={plan} cycle={cycle} upgrading={upgrading} onUpgrade={handleUpgrade} />
-            <PlanCard id="business" plan={plan} cycle={cycle} upgrading={upgrading} onUpgrade={handleUpgrade} />
-            <PlanCard id="business_pro" plan={plan} cycle={cycle} upgrading={upgrading} onUpgrade={handleUpgrade} />
+            {plans.map(p => (
+              <PlanCard key={p.id} config={p} plan={plan} cycle={cycle} discounts={discounts} upgrading={upgrading} onUpgrade={handleUpgrade} />
+            ))}
           </div>
 
           {/* Enterprise stands alone, in the Andrea-style prose card */}
-          <EnterpriseCard />
+          <EnterpriseCard config={enterprisePlan} />
         </div>
 
         <p className="text-xs text-gray-400 mt-4">

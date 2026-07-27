@@ -6,7 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase-server'
 import { createClient } from '@supabase/supabase-js'
-import { SELF_SERVE_PLAN_IDS, PLAN_CONFIG, PlanId } from '@/lib/plans'
+import { SELF_SERVE_PLAN_IDS, PlanId, BillingCycle } from '@/lib/plans'
+import { fetchPlanDefinition } from '@/lib/plans-db'
 
 function getAdmin() {
   return createClient(
@@ -50,9 +51,14 @@ export async function POST(req: NextRequest) {
 
     const txData = flwJson.data as Record<string, unknown>
 
-    // The paid amount must cover the requested plan's price
+    const planDef = await fetchPlanDefinition(plan_id)
+    if (!planDef) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
+
+    // The paid amount must cover the requested plan's CURRENT price — read
+    // live, not from a stale static default, so a price change an admin
+    // makes is actually enforced for new checkouts.
     const paidAmount = Number(txData.amount ?? 0)
-    const requiredAmount = PLAN_CONFIG[plan_id as PlanId].monthlyNgn
+    const requiredAmount = planDef.monthlyNgn
     if (!requiredAmount || paidAmount < requiredAmount) {
       console.error(
         `verify-redirect: amount mismatch — paid ${paidAmount}, plan ${plan_id} requires ${requiredAmount}`
@@ -82,13 +88,13 @@ export async function POST(req: NextRequest) {
       const refMatch = members.find(m => String(m.org_id).startsWith(refOrgPrefix))
       if (refMatch) {
         // The payment was initiated for another org this user belongs to — use that one
-        return activatePlan(admin, refMatch.org_id, plan_id, txData, transaction_id)
+        return activatePlan(admin, refMatch.org_id, plan_id, txData, transaction_id, planDef)
       }
       console.warn(`verify-redirect: tx_ref org ${refOrgPrefix} does not match user orgs`)
       return NextResponse.json({ error: 'Transaction does not belong to your organisation' }, { status: 403 })
     }
 
-    return activatePlan(admin, orgId, plan_id, txData, transaction_id)
+    return activatePlan(admin, orgId, plan_id, txData, transaction_id, planDef)
   } catch (err) {
     console.error('flutterwave/verify-redirect error:', err)
     return NextResponse.json({ error: 'Verification failed' }, { status: 500 })
@@ -100,8 +106,10 @@ async function activatePlan(
   orgId: string,
   plan_id: string,
   txData: Record<string, unknown>,
-  transaction_id: string
+  transaction_id: string,
+  planDef: Awaited<ReturnType<typeof fetchPlanDefinition>>
 ) {
+  if (!planDef) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
   // Guard against double-processing the same transaction
   const txId = String(txData.id ?? transaction_id)
   const { data: already } = await admin
@@ -122,13 +130,23 @@ async function activatePlan(
     return NextResponse.json({ success: true, plan: org?.plan ?? plan_id })
   }
 
-  // Activate the new plan
-  const config = PLAN_CONFIG[plan_id as PlanId]
+  // Activate the new plan. subscribed_price_ngn/cycle/at are set ONCE
+  // here and never touched by anything else — this is what "Current
+  // plan" displays on Settings -> Subscription, deliberately never the
+  // live plan_definitions price, so a later admin price change can never
+  // silently reprice what this org sees as their own price.
+  const meta = (txData.meta ?? {}) as Record<string, unknown>
+  const cycle: BillingCycle = meta.billing_cycle === 'quarterly' || meta.billing_cycle === 'yearly' ? meta.billing_cycle : 'monthly'
+  const paidAmount = Number(txData.amount ?? planDef.monthlyNgn)
+
   const { error: updateError } = await admin.from('organizations').update({
     plan: plan_id,
     paystack_subscription_status: 'active',
-    receipt_limit: config.scanLimit,
-    client_limit: config.clientLimit,
+    receipt_limit: planDef.scanLimit,
+    client_limit: planDef.clientLimit,
+    subscribed_price_ngn: paidAmount,
+    subscribed_cycle: cycle,
+    subscribed_at: new Date().toISOString(),
   }).eq('id', orgId)
 
   if (updateError) {

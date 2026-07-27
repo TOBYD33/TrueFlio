@@ -11,7 +11,7 @@ import { usePathname } from 'next/navigation'
 import {
   BarChart3, Users, ScrollText, Shield, UserCog, Activity,
   Trophy, LineChart, Megaphone, ChevronLeft, ChevronRight,
-  Sun, Moon, ArrowLeft, Radio,
+  Sun, Moon, ArrowLeft, Radio, Tags,
 } from 'lucide-react'
 import { ThemeProvider, useTheme, tone, BRAND } from './theme'
 
@@ -46,6 +46,7 @@ function AdminShellInner({ role, adminName, children }: { role: string; adminNam
     { href: '/admin/audit-log', label: 'Audit Log', icon: ScrollText },
     ...(role === 'super'
       ? [
+          { href: '/admin/plans', label: 'Plans & Pricing', icon: Tags },
           { href: '/admin/broadcast', label: 'Broadcast', icon: Megaphone },
           { href: '/admin/team', label: 'Admin Team', icon: UserCog },
         ]

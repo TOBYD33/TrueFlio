@@ -20,7 +20,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase-server'
 import { createClient } from '@supabase/supabase-js'
-import { SELF_SERVE_PLAN_IDS, PLAN_CONFIG as PLANS, PlanId, BillingCycle, priceForCycle } from '@/lib/plans'
+import { SELF_SERVE_PLAN_IDS, PlanId, BillingCycle } from '@/lib/plans'
+import { fetchPlanDefinition, fetchBillingDiscounts, priceForCycleDb } from '@/lib/plans-db'
 
 function getAdmin() {
   return createClient(
@@ -66,8 +67,10 @@ export async function POST(req: NextRequest) {
     const ownRow = members.find(m => m.role === 'owner') ?? members[0]
 
     const plan = plan_id as PlanId
-    const amount = priceForCycle(PLANS[plan].monthlyNgn, billingCycle)
-    const label = PLANS[plan].label
+    const [planDef, discounts] = await Promise.all([fetchPlanDefinition(plan), fetchBillingDiscounts()])
+    if (!planDef) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
+    const amount = priceForCycleDb(planDef.monthlyNgn, billingCycle, discounts)
+    const label = planDef.label
     const orgId = ownRow.org_id
     const customerName = profileRes.data?.full_name ?? user.email ?? 'TrueFlow User'
     const txRef = `TF-${orgId.slice(0, 8)}-${Date.now()}`
