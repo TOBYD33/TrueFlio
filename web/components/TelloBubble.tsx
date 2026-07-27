@@ -7,7 +7,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { visibleCategories } from '@/lib/prompt-examples'
-import { canInviteTeamMembers } from '@/lib/plans'
+import { getPlanConfig } from '@/lib/plans'
+import { fetchLivePlanConfig } from '@/lib/plans-client'
 
 interface TelloBubbleProps {
   userId: string
@@ -35,6 +36,14 @@ export function TelloBubble({ userId, orgId, isFirstTime, plan }: TelloBubblePro
   const [sending, setSending] = useState(false)
   const [welcomePlayed, setWelcomePlayed] = useState(false)
   const [unreadNudges, setUnreadNudges] = useState<{ id: string; content: string }[]>([])
+  // Initialised from the static fallback (correct pre-live-fetch default),
+  // then upgraded once fetchLivePlanConfig resolves — so a Super Admin
+  // toggle in /admin/plans reflects here without a stale flash.
+  const [canInviteTeam, setCanInviteTeam] = useState(getPlanConfig(plan).staffLimit !== 0)
+
+  useEffect(() => {
+    fetchLivePlanConfig(plan).then(cfg => setCanInviteTeam(cfg.staffLimit !== 0))
+  }, [plan])
 
   const hasAutoOpenedRef = useRef(false)
   const wordIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -381,7 +390,7 @@ export function TelloBubble({ userId, orgId, isFirstTime, plan }: TelloBubblePro
                 <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Try asking Tello
                 </div>
-                {visibleCategories(canInviteTeamMembers(plan)).map(cat => (
+                {visibleCategories(canInviteTeam).map(cat => (
                   <div key={cat.id}>
                     <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', marginBottom: '5px' }}>
                       {cat.emoji} {cat.label}

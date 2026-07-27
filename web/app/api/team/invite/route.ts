@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { randomUUID } from 'crypto'
-import { staffLimitFor } from '@/lib/plans'
+import { staffLimitForDb } from '@/lib/plans-db'
 
 function getAdmin() {
   return createAdminClient(
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   // positive number is a real cap. The old `slotLimit > 0` check treated 0
   // as "no limit" (falsy), which would have silently let Business Starter
   // invite unlimited staff — fixed to explicitly compare against -1.
-  const slotLimit = staffLimitFor(org?.plan)
+  const slotLimit = await staffLimitForDb(org?.plan)
 
   // Count current active non-owner members
   const { count: currentCount } = await admin

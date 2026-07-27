@@ -27,7 +27,8 @@ import {
 } from '@/lib/tax'
 import { Landmark, Calculator, ScrollText, Bell, ArrowRight, Plus, TrendingDown, TrendingUp, Lock } from 'lucide-react'
 import { toast } from 'sonner'
-import { canUseAdvancedTaxHub, canUseTaxHub } from '@/lib/plans'
+import { getPlanConfig } from '@/lib/plans'
+import { fetchLivePlanConfig } from '@/lib/plans-client'
 
 // Advanced Tax Hub (Business Pro/Enterprise) unlocks quarterly and yearly
 // reporting periods — Basic tiers (Individual/Business Starter) are capped
@@ -61,6 +62,10 @@ export default function TaxHubPage() {
   const [loading, setLoading] = useState(true)
   const [country, setCountry] = useState<TaxCountry>('Nigeria')
   const [plan, setPlan] = useState<string | null>(null)
+  // Initialised from the static fallback config (correct pre-live-fetch
+  // default) then upgraded once fetchLivePlanConfig resolves — so an admin
+  // toggle in /admin/plans reflects here without a stale lock/unlock flash.
+  const [taxAnalysis, setTaxAnalysis] = useState<'inactive' | 'basic' | 'advanced'>(getPlanConfig(null).taxAnalysis)
   const [rates, setRates] = useState<TaxRateReference[]>([])
   const [receipts, setReceipts] = useState<Receipt[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -89,6 +94,7 @@ export default function TaxHubPage() {
 
       if (org?.default_tax_country) setCountry(org.default_tax_country as TaxCountry)
       if (org?.plan) setPlan(org.plan)
+      fetchLivePlanConfig(org?.plan).then(cfg => setTaxAnalysis(cfg.taxAnalysis))
       setRates((rateRows as TaxRateReference[]) ?? [])
       setReceipts((receiptRows as Receipt[]) ?? [])
       setInvoices((invoiceRows as Invoice[]) ?? [])
@@ -189,7 +195,7 @@ export default function TaxHubPage() {
 
   if (loading) return <div className="text-sm text-gray-400 py-12 text-center">Loading…</div>
 
-  if (!canUseTaxHub(plan)) {
+  if (taxAnalysis === 'inactive') {
     return (
       <div className="max-w-3xl">
         <Card>
@@ -405,7 +411,7 @@ export default function TaxHubPage() {
                   value={estimatePeriod}
                   onValueChange={v => {
                     if (!v) return
-                    if (ADVANCED_ONLY_PERIODS.includes(v as TaxPeriodKey) && !canUseAdvancedTaxHub(plan)) {
+                    if (ADVANCED_ONLY_PERIODS.includes(v as TaxPeriodKey) && taxAnalysis !== 'advanced') {
                       toast.error('Quarterly and yearly reporting is available on Business Pro and above.')
                       return
                     }
@@ -415,7 +421,7 @@ export default function TaxHubPage() {
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {PERIOD_OPTIONS.map(o => {
-                      const locked = ADVANCED_ONLY_PERIODS.includes(o.value) && !canUseAdvancedTaxHub(plan)
+                      const locked = ADVANCED_ONLY_PERIODS.includes(o.value) && taxAnalysis !== 'advanced'
                       return (
                         <SelectItem key={o.value} value={o.value} disabled={locked}>
                           <span className="flex items-center gap-1.5">

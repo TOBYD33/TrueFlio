@@ -16,7 +16,7 @@ import { formatDate } from '@/lib/utils'
 import { Plus, Bell, CheckCircle, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { canUseAutomatedReminders } from '@/lib/plans'
+import { fetchLivePlanConfig } from '@/lib/plans-client'
 
 const RECURRENCE_OPTIONS = [
   { value: 'once', label: 'One time' },
@@ -86,7 +86,7 @@ export default function RemindersPage() {
 
   async function handleAdd() {
     if (!orgId || !form.title.trim() || !form.due_date) return
-    if (!canUseAutomatedReminders(plan)) {
+    if (!(await fetchLivePlanConfig(plan)).automatedReminder) {
       toast.error('Automated reminders aren\'t available on the Free plan. Upgrade to unlock them.')
       return
     }

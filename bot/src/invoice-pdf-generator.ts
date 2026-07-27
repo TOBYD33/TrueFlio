@@ -134,11 +134,12 @@ export async function generateInvoicePdf(invoiceId: string): Promise<string | nu
   }
 
   const org = invoice.organizations as any
+  const invoiceBrandingAllowed = await canUseInvoiceBranding(org?.plan)
 
   const html = buildInvoiceHtml({
     orgName: org?.name || 'Your Business',
     orgAddress: org?.address,
-    orgLogoUrl: canUseInvoiceBranding(org?.plan) ? org?.logo_url : null,
+    orgLogoUrl: invoiceBrandingAllowed ? org?.logo_url : null,
     invoiceNumber: invoice.invoice_number,
     clientName: invoice.client_name,
     lineItems: invoice.line_items || [],

@@ -17,7 +17,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { UserPlus, Search, Phone, Mail, ChevronRight, IdCard } from 'lucide-react'
 import { toast } from 'sonner'
 import { usePageTools } from '@/components/shared/PageTools'
-import { clientLimitFor } from '@/lib/plans'
+import { fetchLivePlanConfig } from '@/lib/plans-client'
 import { touchActivity } from '@/lib/activity'
 
 export default function ClientsPage() {
@@ -109,7 +109,7 @@ export default function ClientsPage() {
     // This form always creates an active client (status defaults to
     // 'active' at the DB level, never a lead), so it always counts against
     // client_limit — mirrors bot/src/client-service.ts's checkActiveClientLimit.
-    const limit = clientLimitFor(plan)
+    const limit = (await fetchLivePlanConfig(plan)).clientLimit
     if (limit !== -1 && activeCount >= limit) {
       toast.error(`You've reached your plan's client limit (${limit}). Upgrade to add more.`)
       return

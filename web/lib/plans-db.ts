@@ -4,15 +4,13 @@
 // checkout, so an admin edit in /admin/plans takes effect immediately on
 // all three with no deploy. See bot/sql/step16-admin-plan-editor.sql.
 //
-// SCOPE NOTE (flagged, not a bug): deeper feature-gate ENFORCEMENT (Tax
-// Hub access, invoice branding, team-invite limits, automated-reminder
-// blocking, client caps) still reads the STATIC PLAN_CONFIG in lib/plans.ts
-// and bot/src/plan-gates.ts, not this table. Toggling a flag here updates
-// what the pricing pages DISPLAY immediately, but does not yet change live
-// enforcement at those gates — wiring every enforcement call site to this
-// table too is a larger follow-up (~6 more files across web + bot), kept
-// out of this pass to bound risk on a billing-safety-critical feature per
-// the ticket's own instruction to prioritize correctness over completeness.
+// Feature-gate ENFORCEMENT (Tax Hub access, invoice branding, team-invite
+// limits, automated-reminder blocking, client caps) also reads this table
+// now, via the canUseXDb/xLimitForDb functions below — a Super Admin toggle
+// in /admin/plans takes effect on both server-side enforcement and what the
+// pricing pages display, with no deploy. bot/src/plan-gates.ts is the
+// bot-side equivalent (separate deployment, reads plan_definitions directly
+// via its own Supabase client since bot/web share no package).
 //
 // PRICING SAFETY: this table's monthly_ngn is what NEW checkouts charge.
 // It is never read for an EXISTING subscriber's "current plan" price —
@@ -22,6 +20,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import type { PlanConfig, PlanId } from './plans'
+import { getPlanConfig, resolvePlan } from './plans'
 
 function getAdmin() {
   return createClient(
@@ -129,4 +128,49 @@ export function priceForCycleDb(monthlyNgn: number, cycle: 'monthly' | 'quarterl
   if (cycle === 'quarterly') return Math.round(monthlyNgn * 3 * (1 - discounts.quarterlyDiscountPct / 100))
   if (cycle === 'yearly') return Math.round(monthlyNgn * 12 * (1 - discounts.yearlyDiscountPct / 100))
   return monthlyNgn
+}
+
+// ── DB-backed enforcement gates ───────────────────────────────────────────
+// These mirror lib/plans.ts's canUseX/xLimitFor functions field-for-field,
+// but read the live plan_definitions row instead of the static PLAN_CONFIG,
+// so a Super Admin's edit in /admin/plans takes effect immediately for
+// server-side enforcement too, not just what the pricing pages display.
+// Falls back to the static PLAN_CONFIG only if the plan id isn't found in
+// the DB (shouldn't happen once step16 is run, but never crash a request
+// over it) — same safety-net pattern as bot/src/plan-gates.ts.
+
+export async function canUseAutomatedRemindersDb(rawPlan: string | null | undefined): Promise<boolean> {
+  const planDef = await fetchPlanDefinition(resolvePlan(rawPlan))
+  return planDef ? planDef.automatedReminder : getPlanConfig(rawPlan).automatedReminder
+}
+
+export async function canUseInvoiceBrandingDb(rawPlan: string | null | undefined): Promise<boolean> {
+  const planDef = await fetchPlanDefinition(resolvePlan(rawPlan))
+  return planDef ? planDef.invoiceBranding : getPlanConfig(rawPlan).invoiceBranding
+}
+
+export async function canUseTaxHubDb(rawPlan: string | null | undefined): Promise<boolean> {
+  const planDef = await fetchPlanDefinition(resolvePlan(rawPlan))
+  return planDef ? planDef.taxAnalysis !== 'inactive' : getPlanConfig(rawPlan).taxAnalysis !== 'inactive'
+}
+
+export async function canUseAdvancedTaxHubDb(rawPlan: string | null | undefined): Promise<boolean> {
+  const planDef = await fetchPlanDefinition(resolvePlan(rawPlan))
+  return planDef ? planDef.taxAnalysis === 'advanced' : getPlanConfig(rawPlan).taxAnalysis === 'advanced'
+}
+
+export async function canInviteTeamMembersDb(rawPlan: string | null | undefined): Promise<boolean> {
+  const planDef = await fetchPlanDefinition(resolvePlan(rawPlan))
+  const staffLimit = planDef ? planDef.staffLimit : getPlanConfig(rawPlan).staffLimit
+  return staffLimit !== 0
+}
+
+export async function staffLimitForDb(rawPlan: string | null | undefined): Promise<number> {
+  const planDef = await fetchPlanDefinition(resolvePlan(rawPlan))
+  return planDef ? planDef.staffLimit : getPlanConfig(rawPlan).staffLimit
+}
+
+export async function clientLimitForDb(rawPlan: string | null | undefined): Promise<number> {
+  const planDef = await fetchPlanDefinition(resolvePlan(rawPlan))
+  return planDef ? planDef.clientLimit : getPlanConfig(rawPlan).clientLimit
 }

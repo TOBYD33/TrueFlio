@@ -272,7 +272,7 @@ export async function handleMessage(body: TwilioWebhookBody): Promise<string> {
     }
 
     if (isHelpCommand(messageText)) {
-      const { text, categories } = buildHelpMenu(canInviteTeamMembers(user.plan))
+      const { text, categories } = buildHelpMenu(await canInviteTeamMembers(user.plan))
       await startHelpMenu(phoneNumber, categories)
       return await deliverAndCloseOut(text)
     }

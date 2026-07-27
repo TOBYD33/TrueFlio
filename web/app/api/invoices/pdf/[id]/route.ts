@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { Invoice } from '@/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { canUseInvoiceBranding } from '@/lib/plans'
+import { canUseInvoiceBrandingDb } from '@/lib/plans-db'
 
 type LineItem = { description: string; quantity: number; unit_price: number; total: number }
 
@@ -36,7 +36,7 @@ export async function GET(
     const orgName = org?.name ?? 'Your Business'
     // Custom invoice logo/branding is a Business Pro+ feature — lower tiers
     // still get a clean invoice, just without the uploaded logo rendered.
-    const showLogo = !!org?.logo_url && canUseInvoiceBranding(org?.plan)
+    const showLogo = !!org?.logo_url && await canUseInvoiceBrandingDb(org?.plan)
 
     // Fetch profile phone for invoice header contact line
     const { data: profileData } = await supabase

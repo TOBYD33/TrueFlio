@@ -44,7 +44,7 @@ export async function executeActions(actions: string[], user: any): Promise<Acti
           break
         }
         case 'SET_REMINDER': {
-          if (!canUseAutomatedReminders(user.plan)) {
+          if (!(await canUseAutomatedReminders(user.plan))) {
             notifications.push('⏰ Automated reminders aren\'t available on the Free plan. Upgrade at app.gettrueflow.com/settings/subscription to unlock them.')
             break
           }
