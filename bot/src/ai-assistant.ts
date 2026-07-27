@@ -81,11 +81,13 @@ ACTION:SET_REMINDER:{title}:{YYYY-MM-DD}:{recurrence}:{HHMM}
    as stated in that block. ALWAYS include it when the user gives a time.
    Omit only when no time is given — those reminders deliver at 8:00 AM on
    the due date.
-   If the user says "today" for a clock time that has ALREADY PASSED
-   relative to the current time in that block, do NOT silently emit
-   SET_REMINDER with a same-day date — ask first: "That time's already
-   passed today — did you mean tomorrow, or is this for right now?" Wait
-   for their answer before emitting the action.
+   Do NOT try to judge yourself whether a same-day time has already passed
+   — comparing clock times close together is exactly the kind of arithmetic
+   a model can get subtly wrong, and this system already checks it reliably
+   in code after you emit the action. Just convert whatever time the user
+   gave into HHMM and emit SET_REMINDER — if it turns out to already be in
+   the past, the system will tell the user itself and ask if they meant
+   tomorrow; you never need to pre-empt that or ask it yourself.
    Emit SET_REMINDER ONLY when the user is creating or changing a reminder.
    Never emit it when they are merely asking about one — e.g. "did you set
    the reminder?" is a question, answer it without any ACTION tag. To change
