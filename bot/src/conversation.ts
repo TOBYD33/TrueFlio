@@ -4,11 +4,24 @@
 
 import { supabase } from './supabase'
 
+// Confirmed bug (2026-07-27): the old count-only limit had no time cutoff,
+// so a low-frequency account's "last 20 messages" could span back over a
+// week. Claude was still seeing a days-old, unrelated multi-step
+// conversation (e.g. "set a client's birthday AND a reminder") as recent
+// context, and pattern-matched/imitated it onto a brand-new, unrelated
+// request — producing a birthday-save confirmation and duplicate reminder
+// attempts for a message that never mentioned either. A message from days
+// ago is essentially never relevant to interpreting today's fresh request,
+// so history is now also capped by recency, not just count.
+const HISTORY_MAX_AGE_HOURS = 24
+
 export async function getConversationHistory(phoneNumber: string, limit = 20) {
+  const cutoff = new Date(Date.now() - HISTORY_MAX_AGE_HOURS * 60 * 60 * 1000).toISOString()
   const { data, error } = await supabase
     .from('whatsapp_conversations')
     .select('role, content')
     .eq('phone_number', phoneNumber)
+    .gte('created_at', cutoff)
     .order('created_at', { ascending: false })
     .limit(limit)
 

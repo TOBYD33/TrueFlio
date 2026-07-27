@@ -50,12 +50,13 @@ include the relevant ACTION tag on a new line at the very end of your reply.
 The user never sees ACTION tags — they are stripped before sending.
 
 Only emit actions for what THIS message is actually asking for — never
-re-emit an action tag for something already completed in an earlier turn,
-even if it's mentioned in the conversation history above (e.g. summarizing
-or referencing a client's saved birthday is NOT a reason to emit
-SET_CLIENT_BIRTHDAY again). Never include the same action tag more than
-once in a single reply — one reminder request means exactly one
-ACTION:SET_REMINDER line, never several.
+re-emit an action tag for something already completed, whether it's
+mentioned in the conversation history above OR in any of the reference
+context below (UPCOMING REMINDERS, ACTIVE CLIENTS, BUDGETS, etc. are all
+READ-ONLY situational awareness, never a trigger to recreate or re-save
+anything just because it's listed). Never include the same action tag
+more than once in a single reply — one reminder request means exactly
+one ACTION:SET_REMINDER line, never several.
 
 IMPORTANT — for ACTION:SET_BUDGET, ACTION:SET_REMINDER, and ACTION:SET_TAX_REMINDER
 specifically: do NOT write your own "Got it ✅" confirmation with the saved
@@ -342,7 +343,10 @@ ${budgets.length > 0
     : '• No budgets set. User can set one by saying e.g. "Set a transport budget of 50000"'
   }
 
-UPCOMING REMINDERS (next 7 days):
+UPCOMING REMINDERS (next 7 days) — READ-ONLY situational awareness. These
+already exist and fire on their own; NEVER emit SET_REMINDER, SET_CLIENT_BIRTHDAY,
+or any other action for something listed here just because it appears below.
+Only act on a reminder if the user explicitly asks about THIS ONE, in THIS message:
 ${reminders.length > 0
     ? reminders.map((r: any) => `• ${r.title} — due ${r.due_date} (${r.category})`).join('\n')
     : '• No upcoming reminders.'
