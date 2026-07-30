@@ -181,7 +181,7 @@ export async function completeOnboarding(phoneNumber: string): Promise<void> {
 // business rule 3. Fires once per new onboarding — call this only right
 // after completeOnboarding(), from whichever of the three first-action
 // paths got there first.
-async function generateMagicToken(userId: string): Promise<string> {
+export async function generateMagicToken(userId: string): Promise<string> {
   const token = crypto.randomBytes(24).toString('hex')
   await supabase.from('magic_login_tokens').insert({
     token,

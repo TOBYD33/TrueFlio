@@ -16,6 +16,7 @@ import {
   isHelpCommand, buildHelpMenu, resolveHelpMenuSelection,
   getPendingHelpMenu, startHelpMenu, clearHelpMenu, buildFallbackExamplesReply,
 } from './prompt-examples-whatsapp'
+import { isLoginCommand, buildLoginLinkReply } from './login-link-service'
 import { analyzeImage, buildMissingFieldsNote } from './image-analyzer'
 import { handleIncomingPayment } from './smart-transfer'
 import { saveFromAnalysis } from './receipt-scanner'
@@ -275,6 +276,15 @@ export async function handleMessage(body: TwilioWebhookBody): Promise<string> {
       const { text, categories } = buildHelpMenu(await canInviteTeamMembers(user.plan))
       await startHelpMenu(phoneNumber, categories)
       return await deliverAndCloseOut(text)
+    }
+
+    // ── Step 2b3a: "I want to login" / "web app" / "dashboard" ────────────
+    // Deterministic, same reasoning as the help command above — this is
+    // the exact bug that was reported: the AI answered "no login needed"
+    // instead of ever pointing the user anywhere.
+    if (isLoginCommand(messageText)) {
+      const reply = await buildLoginLinkReply(user.user_id)
+      return await deliverAndCloseOut(reply)
     }
   }
 
