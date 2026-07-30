@@ -6,6 +6,7 @@
 // client triggers a confirm-first flow instead of silently double-saving.
 
 import { supabase } from './supabase'
+import { notifyOrgMembers } from './notifications'
 
 export interface BusinessCardFields {
   contact_name: string | null
@@ -51,6 +52,14 @@ export async function saveBusinessCardLead(
     console.error('saveBusinessCardLead: insert failed:', error)
     return null
   }
+
+  await notifyOrgMembers({
+    orgId,
+    category: 'client',
+    title: 'New lead added',
+    body: `${name}${company ? ` from ${company}` : ''} was saved as a new lead.`,
+    link: `/clients/${data.id}`,
+  })
 
   return { id: data.id, name, company }
 }

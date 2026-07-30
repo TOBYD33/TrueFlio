@@ -8,6 +8,7 @@ import { checkBudgetAlerts } from './budget-service'
 import { nudgeMissingBusinessNames } from './onboarding-service'
 import { runInactivityReengagement } from './reengagement-service'
 import { runDailyBrief } from './daily-brief-service'
+import { checkOverdueInvoices } from './invoice-overdue-service'
 
 export function startScheduler() {
   // Fire due reminders — every minute, so timed reminders (e.g. 8:30 PM)
@@ -38,6 +39,11 @@ export function startScheduler() {
   // Daily Brief — hourly, checks each user's own local hour and only acts
   // during their configured send window (see DAILY_BRIEF_LOCAL_HOUR).
   cron.schedule('0 * * * *', () => runDailyBrief(), { timezone: 'UTC' })
+
+  // Overdue invoice check — once daily, 9am WAT (8am UTC). Only acts on
+  // invoices whose due_date was exactly yesterday, so each one only ever
+  // transitions to 'overdue' and notifies once.
+  cron.schedule('0 8 * * *', () => checkOverdueInvoices(), { timezone: 'UTC' })
 
   console.log('TrueFlow scheduler running ✅')
 }

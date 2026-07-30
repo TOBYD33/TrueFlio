@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { SELF_SERVE_PLAN_IDS, PlanId, BillingCycle } from '@/lib/plans'
 import { fetchPlanDefinition } from '@/lib/plans-db'
+import { notifyAdmins } from '@/lib/notifications'
 
 function getAdmin() {
   return createClient(
@@ -148,6 +149,8 @@ export async function POST(req: NextRequest) {
         // consistent in case the webhook fires first or alone.
         const cycle: BillingCycle = meta?.billing_cycle === 'quarterly' || meta?.billing_cycle === 'yearly' ? meta.billing_cycle as BillingCycle : 'monthly'
 
+        const { data: orgBefore } = await admin.from('organizations').select('name, plan, paystack_subscription_status').eq('id', orgId).maybeSingle()
+
         await admin.from('organizations').update({
           plan: planId,
           paystack_subscription_status: 'active',
@@ -157,6 +160,18 @@ export async function POST(req: NextRequest) {
           subscribed_cycle: cycle,
           subscribed_at: new Date().toISOString(),
         }).eq('id', orgId)
+
+        // Only notify if this is an actual state change — avoids a duplicate
+        // notification when verify-redirect (the primary activation path)
+        // already handled this same transaction moments earlier.
+        if (!(orgBefore?.plan === planId && orgBefore?.paystack_subscription_status === 'active')) {
+          await notifyAdmins({
+            category: 'admin',
+            title: 'New paying subscriber',
+            body: `${orgBefore?.name ?? 'An organization'} upgraded to ${planDef.label} (${cycle}).`,
+            link: '/admin/users',
+          })
+        }
 
         if (paymentAmount > 0) {
           const andreaAmount = Math.round(paymentAmount * 0.02 * 100) / 100

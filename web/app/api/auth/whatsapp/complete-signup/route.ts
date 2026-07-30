@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { notifyAdmins } from '@/lib/notifications'
 
 function getSupabaseAdmin() {
   return createClient(
@@ -79,6 +80,13 @@ export async function POST(req: NextRequest) {
         user_id: userId,
         role: 'owner',
         joined_at: new Date().toISOString(),
+      })
+
+      await notifyAdmins({
+        category: 'admin',
+        title: 'New user signup',
+        body: `${fullName} signed up (${orgName}) via WhatsApp web sign-in.`,
+        link: '/admin/users',
       })
     }
 

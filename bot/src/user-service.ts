@@ -5,6 +5,7 @@
 
 import { supabase } from './supabase'
 import { UserContext } from '../types'
+import { notifyAdmins } from './notifications'
 
 export async function getOrCreateUser(phoneNumber: string): Promise<UserContext | null> {
   // Look up existing session
@@ -183,6 +184,13 @@ export async function getOrCreateUser(phoneNumber: string): Promise<UserContext 
     org_id: newOrg.id,
     user_id: newProfile.id,
     is_new: true,
+  })
+
+  await notifyAdmins({
+    category: 'admin',
+    title: 'New user signup',
+    body: `A new user signed up via WhatsApp (${phoneNumber}).`,
+    link: '/admin/users',
   })
 
   return {

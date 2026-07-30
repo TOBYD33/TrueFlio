@@ -64,7 +64,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         />
       )}
       <div style={impersonationSessionId ? { paddingTop: '44px' } : undefined}>
-        <AdminShell role={adminRole} adminName={profile?.full_name ?? user.email ?? 'Admin'}>
+        <AdminShell role={adminRole} adminId={user.id} adminName={profile?.full_name ?? user.email ?? 'Admin'}>
           {children}
         </AdminShell>
       </div>

@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { notifyOrgMembers } from '@/lib/notifications'
 
 function getAdmin() {
   return createAdminClient(
@@ -48,6 +49,15 @@ export async function POST(req: NextRequest) {
     .eq('id', invite.id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const { data: profile } = await admin.from('profiles').select('full_name').eq('id', user.id).maybeSingle()
+  await notifyOrgMembers({
+    orgId: invite.org_id,
+    category: 'system',
+    title: 'Team member joined',
+    body: `${profile?.full_name || user.email || 'A new team member'} joined the team.`,
+    link: '/settings/team',
+  })
 
   return NextResponse.json({ ok: true, orgId: invite.org_id })
 }

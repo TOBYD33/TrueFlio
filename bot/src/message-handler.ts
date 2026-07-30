@@ -17,6 +17,7 @@ import {
   getPendingHelpMenu, startHelpMenu, clearHelpMenu, buildFallbackExamplesReply,
 } from './prompt-examples-whatsapp'
 import { isLoginCommand, buildLoginLinkReply } from './login-link-service'
+import { notifyOrgMembers } from './notifications'
 import { analyzeImage, buildMissingFieldsNote } from './image-analyzer'
 import { handleIncomingPayment } from './smart-transfer'
 import { saveFromAnalysis } from './receipt-scanner'
@@ -130,6 +131,14 @@ export async function handleMessage(body: TwilioWebhookBody): Promise<string> {
           org_id: pendingInvite.org_id,
           user_id: existingProfile.id,
           is_new: false,
+        })
+
+        await notifyOrgMembers({
+          orgId: pendingInvite.org_id,
+          category: 'system',
+          title: 'Team member joined',
+          body: `${phoneNumber} joined ${org?.name || 'the team'} on WhatsApp.`,
+          link: '/settings/team',
         })
 
         return buildTextResponse(

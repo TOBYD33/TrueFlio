@@ -8,6 +8,7 @@ import { createClient as createServerClient } from '@/lib/supabase-server'
 import { createClient } from '@supabase/supabase-js'
 import { SELF_SERVE_PLAN_IDS, PlanId, BillingCycle } from '@/lib/plans'
 import { fetchPlanDefinition } from '@/lib/plans-db'
+import { notifyAdmins } from '@/lib/notifications'
 
 function getAdmin() {
   return createClient(
@@ -153,6 +154,14 @@ async function activatePlan(
     console.error('verify-redirect: organizations update failed:', updateError)
     return NextResponse.json({ error: 'Plan update failed', detail: updateError.message }, { status: 500 })
   }
+
+  const { data: orgRow } = await admin.from('organizations').select('name').eq('id', orgId).maybeSingle()
+  await notifyAdmins({
+    category: 'admin',
+    title: 'New paying subscriber',
+    body: `${orgRow?.name ?? 'An organization'} upgraded to ${planDef.label} (${cycle}).`,
+    link: '/admin/users',
+  })
 
   // Log the event (best-effort — don't fail the request if this errors)
   await admin.from('subscription_events').insert({

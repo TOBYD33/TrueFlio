@@ -7,6 +7,7 @@
 import { supabase } from './supabase'
 import { sendWhatsAppMessage } from './twilio-sender'
 import { notifyOwner } from './notification-service'
+import { notifyOrgMembers } from './notifications'
 
 // Reminders with no explicit time fire at this time of day (WAT)
 const DEFAULT_FIRE_TIME = '08:00'
@@ -169,6 +170,15 @@ export async function fireDueReminders() {
         message,
         emailSubject: overdue ? `Overdue: ${reminder.title}` : `Reminder: ${reminder.title}`,
       })
+      await notifyOrgMembers({
+        orgId: reminder.org_id,
+        category: reminder.category === 'tax' ? 'billing' : 'reminder',
+        title: overdue ? `Overdue: ${reminder.title}` : `Reminder: ${reminder.title}`,
+        body: overdue
+          ? `This was due on ${reminder.due_date} — sorry for the delay in delivering it.`
+          : `This is due now.`,
+        link: '/reminders',
+      })
     } catch (err) {
       console.error(`fireDueReminders: send failed for reminder ${reminder.id}:`, err)
       continue // keep status active — retry next minute
@@ -207,6 +217,13 @@ export async function fireAdvanceReminders() {
       ownerEmail: (owner as any)?.profiles?.email,
       message,
       emailSubject: `Upcoming in 3 days: ${reminder.title}`,
+    })
+    await notifyOrgMembers({
+      orgId: reminder.org_id,
+      category: reminder.category === 'tax' ? 'billing' : 'reminder',
+      title: `Upcoming in 3 days: ${reminder.title}`,
+      body: `Due on ${reminder.due_date}.`,
+      link: '/reminders',
     })
   }
 }

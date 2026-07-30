@@ -14,6 +14,7 @@ import {
   Sun, Moon, ArrowLeft, Radio, Tags,
 } from 'lucide-react'
 import { ThemeProvider, useTheme, tone, BRAND } from './theme'
+import { NotificationBell } from './NotificationBell'
 
 const ROLE_LABELS: Record<string, string> = {
   super: 'Super Admin',
@@ -22,7 +23,7 @@ const ROLE_LABELS: Record<string, string> = {
   readonly: 'Read Only Admin',
 }
 
-export function AdminShell(props: { role: string; adminName: string; children: React.ReactNode }) {
+export function AdminShell(props: { role: string; adminId: string; adminName: string; children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <AdminShellInner {...props} />
@@ -30,7 +31,7 @@ export function AdminShell(props: { role: string; adminName: string; children: R
   )
 }
 
-function AdminShellInner({ role, adminName, children }: { role: string; adminName: string; children: React.ReactNode }) {
+function AdminShellInner({ role, adminId, adminName, children }: { role: string; adminId: string; adminName: string; children: React.ReactNode }) {
   const { dark, setDark } = useTheme()
   const t = tone(dark)
   const pathname = usePathname()
@@ -82,6 +83,7 @@ function AdminShellInner({ role, adminName, children }: { role: string; adminNam
               <Sun size={15} />
             </button>
           </div>
+          <NotificationBell recipientType="admin" recipientId={adminId} historyHref="/admin/notifications" />
           <span className="hidden sm:block text-sm" style={{ color: t.textDim }}>{adminName}</span>
         </div>
       </header>

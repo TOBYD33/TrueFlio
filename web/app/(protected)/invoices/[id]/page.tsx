@@ -143,6 +143,8 @@ export default function InvoiceDetailPage() {
     if (error) { toast.error(error.message); return }
     setInvoice(prev => prev ? { ...prev, status, paid_at: status === 'paid' ? new Date().toISOString() : prev.paid_at } : prev)
     toast.success(`Invoice marked as ${status}`)
+    // Fire-and-forget — never block the UI on notification fan-out.
+    fetch(`/api/invoices/${invoiceId}/notify-status`, { method: 'POST' }).catch(() => {})
   }
 
   function downloadPDF() {

@@ -15,6 +15,7 @@ import { ThemeProvider, useTheme, tone, BRAND } from './shared/theme'
 import { AppSidebar } from './shared/AppSidebar'
 import { PageToolsProvider, usePageToolsHeader } from './shared/PageTools'
 import { GlobalSearch } from './shared/GlobalSearch'
+import { NotificationBell } from './shared/NotificationBell'
 
 interface AppShellProps {
   children: React.ReactNode
@@ -54,6 +55,7 @@ function AppShellInner({ children, orgName, plan }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [initials, setInitials] = useState('?')
+  const [userId, setUserId] = useState<string | null>(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -62,6 +64,7 @@ function AppShellInner({ children, orgName, plan }: AppShellProps) {
     async function loadAvatar() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+      setUserId(user.id)
       const { data } = await supabase.from('profiles').select('full_name, avatar_url').eq('id', user.id).single()
       if (data?.avatar_url) setAvatarUrl(data.avatar_url)
       if (data?.full_name) {
@@ -190,6 +193,8 @@ function AppShellInner({ children, orgName, plan }: AppShellProps) {
           >
             {planLabel}
           </span>
+
+          {userId && <NotificationBell recipientType="user" recipientId={userId} historyHref="/notifications" />}
 
           {/* User avatar + dropdown */}
           <div className="relative" ref={dropdownRef}>
