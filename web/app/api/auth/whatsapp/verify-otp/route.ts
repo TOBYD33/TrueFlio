@@ -140,8 +140,33 @@ export async function POST(req: NextRequest) {
       // every future lookup (bot, web, OTP) resolves consistently.
       if (newUser && matchedUserId && newUser.id !== matchedUserId) {
         const adminDb = getSupabaseAdmin()
-        await adminDb.from('org_members').update({ user_id: newUser.id }).eq('user_id', matchedUserId)
-        await adminDb.from('whatsapp_sessions').update({ user_id: newUser.id }).eq('user_id', matchedUserId)
+        // Both updates are logged on failure — confirmed in production
+        // that this can silently affect 0 rows (or error) while the
+        // profiles.merged_into_id write below still succeeds, leaving an
+        // account that LOOKS merged but whose org_members row never
+        // actually moved, so the merged-into profile has no org at all.
+        // (protected)/layout.tsx has a self-healing fallback for accounts
+        // already in that state, but this logging is what would let a
+        // future occurrence actually be diagnosed instead of rediscovered
+        // by grepping raw table data.
+        const { error: orgMemberMoveError, data: movedOrgMembers } = await adminDb
+          .from('org_members')
+          .update({ user_id: newUser.id })
+          .eq('user_id', matchedUserId)
+          .select('id')
+        if (orgMemberMoveError) {
+          console.error('verify-otp: org_members move failed for', matchedUserId, '->', newUser.id, orgMemberMoveError)
+        } else if (!movedOrgMembers || movedOrgMembers.length === 0) {
+          console.warn('verify-otp: org_members move affected 0 rows for', matchedUserId, '->', newUser.id)
+        }
+
+        const { error: sessionMoveError } = await adminDb
+          .from('whatsapp_sessions')
+          .update({ user_id: newUser.id })
+          .eq('user_id', matchedUserId)
+        if (sessionMoveError) {
+          console.error('verify-otp: whatsapp_sessions move failed for', matchedUserId, '->', newUser.id, sessionMoveError)
+        }
 
         // Move phone + name onto the new profile (create it if no trigger did)
         const oldName = profile?.full_name ?? null

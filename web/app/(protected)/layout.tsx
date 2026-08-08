@@ -99,6 +99,49 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       .eq('user_id', effectiveUserId)
       .maybeSingle()
     orgId = member?.org_id ?? null
+
+    // Self-healing fallback: confirmed in production that the WhatsApp
+    // OTP identity-merge (verify-otp.ts) can mark an old profile
+    // merged_into_id -> this one without actually moving its org_members
+    // row over — leaving this account correctly authenticated but with
+    // NO org_members row of its own, so the lookup above comes up empty.
+    // That's a null orgId with no error anywhere, which is exactly what
+    // silently hid the whole dashboard (including TelloBubble, which is
+    // gated on `orgId &&`) for real, currently-active users. Rather than
+    // leave this account permanently broken until a manual data fix, look
+    // for the org_members row still sitting under whichever old profile(s)
+    // merged into this one, and adopt it — repairing the data in place so
+    // this fallback only has to run once per affected account.
+    if (!orgId) {
+      const { data: mergedFrom } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('merged_into_id', effectiveUserId)
+      const oldIds = (mergedFrom ?? []).map(p => p.id)
+
+      if (oldIds.length > 0) {
+        const { data: staleMembers } = await admin
+          .from('org_members')
+          .select('id, org_id')
+          .in('user_id', oldIds)
+          .is('removed_at', null)
+
+        const staleMember = staleMembers?.[0]
+        if (staleMember) {
+          orgId = staleMember.org_id
+          const { error: repairError } = await admin
+            .from('org_members')
+            .update({ user_id: effectiveUserId })
+            .eq('id', staleMember.id)
+          if (repairError) {
+            console.error('layout: failed to repair stale org_members row for', effectiveUserId, repairError)
+          } else {
+            await admin.from('whatsapp_sessions').update({ user_id: effectiveUserId }).in('user_id', oldIds)
+          }
+        }
+      }
+    }
+
     viewingUserId = effectiveUserId
     const { data: ownProfile } = await admin
       .from('profiles')
