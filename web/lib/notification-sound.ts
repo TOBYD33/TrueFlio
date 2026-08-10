@@ -57,15 +57,28 @@ if (typeof window !== 'undefined') {
   window.addEventListener('keydown', onFirstInteraction, { once: true })
 }
 
-export function playNotificationChime() {
-  if (!interacted) return
+export async function playNotificationChime() {
+  if (!interacted) {
+    console.debug('[notification-sound] skipped: no user interaction yet this session')
+    return
+  }
   try {
     const ctx = ensureContext()
-    if (!ctx) return
-    // Best-effort re-resume — a context can drift back to suspended (e.g.
-    // after the tab was backgrounded for a while) even after the initial
-    // gesture-time unlock.
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {})
+    if (!ctx) {
+      console.debug('[notification-sound] skipped: Web Audio API unavailable')
+      return
+    }
+    // A context can drift back to 'suspended' on its own — e.g. Chrome
+    // suspends AudioContexts on tabs that have been backgrounded/idle for a
+    // while, even after the initial gesture-time unlock. Firing resume()
+    // without awaiting it (the previous bug) meant the notes below got
+    // scheduled against a clock that wasn't actually running yet, so
+    // nothing played — silently, since resume() was never checked.
+    if (ctx.state === 'suspended') {
+      console.debug('[notification-sound] context was suspended, resuming…')
+      await ctx.resume()
+    }
+    console.debug('[notification-sound] playing, context state:', ctx.state)
 
     const now = ctx.currentTime
     const notes: [number, number][] = [
@@ -86,7 +99,10 @@ export function playNotificationChime() {
       osc.start(start)
       osc.stop(start + 0.24)
     }
-  } catch {
-    // Never let a sound failure break the notification flow.
+  } catch (err) {
+    // Never let a sound failure break the notification flow — but DO log
+    // it, so a real failure is diagnosable instead of indistinguishable
+    // from "working as designed, autoplay just blocked it."
+    console.warn('[notification-sound] playback failed:', err)
   }
 }
