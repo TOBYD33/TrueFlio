@@ -99,6 +99,7 @@ export interface Reminder {
   recurrence: string
   category: string
   status: 'active' | 'fired' | 'dismissed'
+  archived_at: string | null
 }
 
 export interface ShareLink {

@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
         .select('title, due_date')
         .eq('org_id', orgId)
         .eq('status', 'active')
+        .is('archived_at', null)
         .gte('due_date', new Date().toISOString().split('T')[0])
         .lte('due_date', threeDaysFromNow)
         .order('due_date', { ascending: true })

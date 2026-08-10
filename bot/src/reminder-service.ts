@@ -121,12 +121,117 @@ export async function getUpcomingReminders(orgId: string, daysAhead: number) {
     .select('*')
     .eq('org_id', orgId)
     .eq('status', 'active')
+    .is('archived_at', null)
     .gte('due_date', today)
     .lte('due_date', futureStr)
     .order('due_date', { ascending: true })
 
   if (error) throw new Error(error.message)
   return data || []
+}
+
+// ── Archive / Restore / Stop-recurring / Permanent delete / Edit ─────────
+// Shared by the web Reminders page and Tello/WhatsApp (action-executor.ts),
+// so both surfaces stay behaviourally identical — see the notification-bell
+// build's precedent (notifications.ts) for the same "one function, two
+// callers" shape.
+
+async function findActiveReminderByTitle(orgId: string, title: string) {
+  const { data } = await supabase
+    .from('reminders')
+    .select('*')
+    .eq('org_id', orgId)
+    .ilike('title', `%${title}%`)
+    .is('archived_at', null)
+    .in('status', ['active', 'fired'])
+    .order('due_date', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  return data
+}
+
+async function findArchivedReminderByTitle(orgId: string, title: string) {
+  const { data } = await supabase
+    .from('reminders')
+    .select('*')
+    .eq('org_id', orgId)
+    .ilike('title', `%${title}%`)
+    .not('archived_at', 'is', null)
+    .order('archived_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return data
+}
+
+export class ReminderNotFoundError extends Error {}
+
+// Archives ONE occurrence — for a recurring reminder this only hides it
+// until it next fires and rolls its due_date forward (see fireDueReminders
+// below, which clears archived_at at that point), it does NOT end the
+// series. Use stopRecurringReminder for that.
+export async function archiveReminderByTitle(orgId: string, title: string) {
+  const reminder = await findActiveReminderByTitle(orgId, title)
+  if (!reminder) throw new ReminderNotFoundError(`No active reminder matching "${title}"`)
+  const { error } = await supabase.from('reminders').update({ archived_at: new Date().toISOString() }).eq('id', reminder.id)
+  if (error) throw new Error(error.message)
+  return reminder
+}
+
+export async function restoreReminderByTitle(orgId: string, title: string) {
+  const reminder = await findArchivedReminderByTitle(orgId, title)
+  if (!reminder) throw new ReminderNotFoundError(`No archived reminder matching "${title}"`)
+  const { error } = await supabase.from('reminders').update({ archived_at: null }).eq('id', reminder.id)
+  if (error) throw new Error(error.message)
+  return reminder
+}
+
+// Ends a recurring series without deleting its history — sets recurrence
+// to 'once' so fireDueReminders' existing advance-or-terminate logic lets
+// it fire (if not archived) exactly one more time and then naturally
+// terminates via status = 'fired', instead of rolling forward forever.
+export async function stopRecurringReminderByTitle(orgId: string, title: string) {
+  const reminder = await findActiveReminderByTitle(orgId, title)
+  if (!reminder) throw new ReminderNotFoundError(`No active reminder matching "${title}"`)
+  if (reminder.recurrence === 'once') return reminder // nothing to stop
+  const { error } = await supabase.from('reminders').update({ recurrence: 'once' }).eq('id', reminder.id)
+  if (error) throw new Error(error.message)
+  return reminder
+}
+
+// Searches BOTH active and archived reminders — permanently deleting is a
+// valid action from either state (e.g. "delete my old gym reminder" for
+// something never explicitly archived first).
+export async function deleteReminderPermanentlyByTitle(orgId: string, title: string) {
+  const { data: reminder } = await supabase
+    .from('reminders')
+    .select('*')
+    .eq('org_id', orgId)
+    .ilike('title', `%${title}%`)
+    .order('due_date', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (!reminder) throw new ReminderNotFoundError(`No reminder matching "${title}"`)
+  const { error } = await supabase.from('reminders').delete().eq('id', reminder.id)
+  if (error) throw new Error(error.message)
+  return reminder
+}
+
+export async function editReminderByTitle(orgId: string, title: string, updates: {
+  newTitle?: string
+  dueDate?: string
+  dueTime?: string | null
+  recurrence?: string
+}) {
+  const reminder = await findActiveReminderByTitle(orgId, title)
+  if (!reminder) throw new ReminderNotFoundError(`No active reminder matching "${title}"`)
+  const patch: Record<string, unknown> = {}
+  if (updates.newTitle) patch.title = updates.newTitle
+  if (updates.dueDate) patch.due_date = updates.dueDate
+  if (updates.dueTime !== undefined) patch.due_time = updates.dueTime
+  if (updates.recurrence) patch.recurrence = updates.recurrence
+  const { data, error } = await supabase.from('reminders').update(patch).eq('id', reminder.id).select().single()
+  if (error) throw new Error(error.message)
+  return data
 }
 
 // Called by scheduler every minute. Fires anything due now or overdue.
@@ -152,6 +257,19 @@ export async function fireDueReminders() {
     }
 
     const owner = reminder.organizations?.org_members?.find((m: any) => m.role === 'owner')
+
+    // The user explicitly dismissed this occurrence — still advance (or
+    // terminate) it below, same as normal, but skip notifying about it.
+    if (reminder.archived_at) {
+      const nextDate = getNextDate(reminder.due_date, reminder.recurrence)
+      if (nextDate !== reminder.due_date) {
+        await supabase.from('reminders').update({ due_date: nextDate, archived_at: null }).eq('id', reminder.id)
+      } else {
+        await supabase.from('reminders').update({ status: 'fired', fired_at: new Date().toISOString() }).eq('id', reminder.id)
+      }
+      continue
+    }
+
     if (!owner?.whatsapp_number) continue
 
     // Use the CURRENT profile name at send time — names are user-editable
@@ -186,9 +304,12 @@ export async function fireDueReminders() {
 
     // Advance recurring reminders; anything else (including malformed
     // recurrence values) is marked fired so it can never loop every minute.
+    // archived_at is cleared on advance — archiving only ever hides the
+    // occurrence that was due, not the series, so the next occurrence
+    // should show up normally in the Active view again.
     const nextDate = getNextDate(reminder.due_date, reminder.recurrence)
     if (nextDate !== reminder.due_date) {
-      await supabase.from('reminders').update({ due_date: nextDate }).eq('id', reminder.id)
+      await supabase.from('reminders').update({ due_date: nextDate, archived_at: null }).eq('id', reminder.id)
     } else {
       await supabase.from('reminders').update({ status: 'fired', fired_at: new Date().toISOString() }).eq('id', reminder.id)
     }
@@ -206,6 +327,7 @@ export async function fireAdvanceReminders() {
     .select(`*, organizations(org_members(whatsapp_number, role, profiles(email)))`)
     .eq('due_date', targetStr)
     .eq('status', 'active')
+    .is('archived_at', null)
 
   for (const reminder of reminders || []) {
     const owner = reminder.organizations?.org_members?.find((m: any) => m.role === 'owner')

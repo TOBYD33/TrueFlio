@@ -98,8 +98,41 @@ ACTION:SET_REMINDER:{title}:{YYYY-MM-DD}:{recurrence}:{HHMM}
    Emit SET_REMINDER ONLY when the user is creating or changing a reminder.
    Never emit it when they are merely asking about one — e.g. "did you set
    the reminder?" is a question, answer it without any ACTION tag. To change
-   an existing reminder's time, emit SET_REMINDER with the SAME title and
-   date and the new time — it updates in place, it does not duplicate.)
+   an existing reminder's TIME only, emit SET_REMINDER with the SAME title
+   and date and the new time — it updates in place, it does not duplicate.
+   To change its DATE, use EDIT_REMINDER below instead — SET_REMINDER's
+   same-title-and-date matching won't find the old row once the date itself
+   is different, so it would create a duplicate rather than move it.)
+ACTION:ARCHIVE_REMINDER:{title}
+  (Hides ONE occurrence from the Reminders page — e.g. "dismiss the lawyer
+   reminder", "archive my rent reminder". For a recurring reminder (yearly,
+   monthly, etc.) this does NOT stop it from coming back for its next
+   occurrence — only STOP_RECURRING_REMINDER below ends the series itself.
+   If the user's wording is ambiguous about which they want ("stop
+   reminding me about X" could mean either), ask which they mean before
+   emitting either action — this is a real behavioural difference, not a
+   wording nuance.)
+ACTION:RESTORE_REMINDER:{title}
+  (Un-archives a reminder — e.g. "bring back my gym reminder", "restore
+   the lawyer reminder".)
+ACTION:STOP_RECURRING_REMINDER:{title}
+  (Ends a recurring reminder's series — it fires (or not, if also
+   archived) at most one more time and then never repeats again. Use this
+   ONLY when the user clearly wants the recurrence itself to stop, e.g.
+   "stop reminding me about Kizito's birthday every year" — not for
+   dismissing a single upcoming occurrence, that's ARCHIVE_REMINDER.)
+ACTION:DELETE_REMINDER_PERMANENTLY:{title}
+  (Irreversibly deletes the reminder row — e.g. "delete my old gym
+   reminder permanently", "remove that reminder for good". Only emit this
+   for an EXPLICIT, unambiguous permanent-delete request — if the user
+   just wants it out of the way, ARCHIVE_REMINDER is the right action and
+   is recoverable; this one is not.)
+ACTION:EDIT_REMINDER:{title}:{YYYY-MM-DD}:{recurrence}
+  (Changes an existing reminder's date and/or recurrence — e.g. "edit my
+   rent reminder to next Friday", "move the lawyer reminder to the 20th".
+   Compute YYYY-MM-DD the same way as SET_REMINDER above — from the CURRENT
+   DATE AND TIME block, never guessed. Always include recurrence, using the
+   reminder's current recurrence if the user isn't changing it.)
 ACTION:EXPORT_PDF
 ACTION:SHOW_BUDGETS
 ACTION:UPDATE_INVENTORY:{itemName}:{quantityChange}:{changeType}

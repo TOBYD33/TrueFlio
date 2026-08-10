@@ -3,7 +3,11 @@
 // e.g. "SET_BUDGET:Transport:120000" → writes budget to Supabase
 
 import { setBudget } from './budget-service'
-import { setReminder, PastDueReminderError } from './reminder-service'
+import {
+  setReminder, PastDueReminderError, ReminderNotFoundError,
+  archiveReminderByTitle, restoreReminderByTitle, stopRecurringReminderByTitle,
+  deleteReminderPermanentlyByTitle, editReminderByTitle,
+} from './reminder-service'
 import { generateAndSendPDF } from './pdf-generator'
 import { getBudgetStatus } from './report-service'
 import { getInventoryItems, addInventoryItem, updateStock, getLowStockItems } from './inventory-service'
@@ -80,6 +84,45 @@ export async function executeActions(actions: string[], user: any): Promise<Acti
           // only claim a reminder was set once the write is verified.
           const timeLabel = saved?.due_time ? ` at ${saved.due_time.slice(0, 5)}` : ''
           notifications.push(`✅ *Reminder set!* ${title} — ${date}${timeLabel}`)
+          break
+        }
+        case 'ARCHIVE_REMINDER': {
+          // ARCHIVE_REMINDER:Call my Lawyer
+          // Hides ONE occurrence — for a recurring reminder this does NOT
+          // end the series, see STOP_RECURRING_REMINDER for that.
+          const [, title] = parts
+          const reminder = await archiveReminderByTitle(user.org_id, title)
+          notifications.push(`✅ Archived "${reminder.title}". ${reminder.recurrence !== 'once' ? "It'll show up again for its next occurrence." : 'You can restore it anytime from the Reminders page.'}`)
+          break
+        }
+        case 'RESTORE_REMINDER': {
+          // RESTORE_REMINDER:Call my Lawyer
+          const [, title] = parts
+          const reminder = await restoreReminderByTitle(user.org_id, title)
+          notifications.push(`✅ Restored "${reminder.title}" to your active reminders.`)
+          break
+        }
+        case 'STOP_RECURRING_REMINDER': {
+          // STOP_RECURRING_REMINDER:Call my Lawyer
+          // Ends the recurring series itself — distinct from
+          // ARCHIVE_REMINDER, which only hides the next occurrence.
+          const [, title] = parts
+          const reminder = await stopRecurringReminderByTitle(user.org_id, title)
+          notifications.push(`✅ "${reminder.title}" will no longer repeat.`)
+          break
+        }
+        case 'DELETE_REMINDER_PERMANENTLY': {
+          // DELETE_REMINDER_PERMANENTLY:Call my Lawyer
+          const [, title] = parts
+          const reminder = await deleteReminderPermanentlyByTitle(user.org_id, title)
+          notifications.push(`✅ Permanently deleted "${reminder.title}". This can't be undone.`)
+          break
+        }
+        case 'EDIT_REMINDER': {
+          // EDIT_REMINDER:Call my Lawyer:2026-08-15:once
+          const [, title, newDate, newRecurrence] = parts
+          const updated = await editReminderByTitle(user.org_id, title, { dueDate: newDate, recurrence: newRecurrence })
+          notifications.push(`✅ Updated "${updated.title}" — now due ${updated.due_date}${updated.recurrence !== 'once' ? ` (${updated.recurrence})` : ''}.`)
           break
         }
         case 'EXPORT_PDF': {
@@ -342,6 +385,8 @@ export async function executeActions(actions: string[], user: any): Promise<Acti
       console.error(`executeAction ${type} failed:`, err)
       if (err instanceof PastDueReminderError) {
         failures.push("⏰ That time's already passed — did you mean tomorrow, or right now? Let me know and I'll set it.")
+      } else if (err instanceof ReminderNotFoundError) {
+        failures.push("🤔 I couldn't find a reminder matching that. Check the exact title on the Reminders page and try again.")
       } else {
         failures.push(actionFailureMessage(type))
       }

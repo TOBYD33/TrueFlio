@@ -25,9 +25,9 @@ export async function getPendingSummary(orgId: string, tz: string): Promise<Pend
   const [{ count: taxCount }, { count: dueTodayCount }, { data: openInvoices }] = await Promise.all([
     // Exact mirror of the Home page's Tax Hub badge query.
     supabase.from('reminders').select('id', { count: 'exact', head: true })
-      .eq('org_id', orgId).eq('category', 'tax').eq('status', 'active'),
+      .eq('org_id', orgId).eq('category', 'tax').eq('status', 'active').is('archived_at', null),
     supabase.from('reminders').select('id', { count: 'exact', head: true })
-      .eq('org_id', orgId).eq('status', 'active').eq('due_date', today),
+      .eq('org_id', orgId).eq('status', 'active').is('archived_at', null).eq('due_date', today),
     supabase.from('invoices').select('id, due_date, status')
       .eq('org_id', orgId).in('status', ['sent', 'overdue']),
   ])

@@ -69,7 +69,7 @@ export default function HomePage() {
         supabase.from('profiles').select('full_name').eq('id', userId).maybeSingle(),
         supabase.from('organizations').select('type').eq('id', orgId).single(),
         supabase.from('reminders').select('id', { count: 'exact', head: true })
-          .eq('org_id', orgId).eq('category', 'tax').eq('status', 'active'),
+          .eq('org_id', orgId).eq('category', 'tax').eq('status', 'active').is('archived_at', null),
       ])
 
       const name = profile?.full_name?.trim()

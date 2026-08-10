@@ -89,7 +89,7 @@ export default function TaxHubPage() {
         supabase.from('tax_rate_reference').select('*').order('country').order('tax_type'),
         supabase.from('receipts').select('*').eq('org_id', orgId),
         supabase.from('invoices').select('*').eq('org_id', orgId),
-        supabase.from('reminders').select('*').eq('org_id', orgId).eq('category', 'tax').eq('status', 'active').order('due_date', { ascending: true }),
+        supabase.from('reminders').select('*').eq('org_id', orgId).eq('category', 'tax').eq('status', 'active').is('archived_at', null).order('due_date', { ascending: true }),
       ])
 
       if (org?.default_tax_country) setCountry(org.default_tax_country as TaxCountry)

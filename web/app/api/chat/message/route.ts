@@ -456,7 +456,7 @@ export async function POST(req: NextRequest) {
     const [receiptsRes, budgetsRes, remindersRes, historyRes, taxRatesRes, clientsRes] = await Promise.all([
       orgId ? admin.from('receipts').select('amount, category, vendor_name, date').eq('org_id', orgId).gte('date', monthStart) : Promise.resolve({ data: [] }),
       orgId ? admin.from('budgets').select('category, amount').eq('org_id', orgId).eq('month', now.getMonth() + 1).eq('year', now.getFullYear()) : Promise.resolve({ data: [] }),
-      orgId ? admin.from('reminders').select('title, due_date, category').eq('org_id', orgId).eq('status', 'active').gte('due_date', monthStart).order('due_date').limit(5) : Promise.resolve({ data: [] }),
+      orgId ? admin.from('reminders').select('title, due_date, category').eq('org_id', orgId).eq('status', 'active').is('archived_at', null).gte('due_date', monthStart).order('due_date').limit(5) : Promise.resolve({ data: [] }),
       admin.from('whatsapp_conversations').select('role, content').eq('phone_number', chatId).order('created_at', { ascending: false }).limit(20),
       admin.from('tax_rate_reference').select('*').order('country').order('tax_type'),
       orgId ? admin.from('clients').select('id, name, outstanding_balance, total_earned, status').eq('org_id', orgId).eq('status', 'active').order('outstanding_balance', { ascending: false }).limit(10) : Promise.resolve({ data: [] }),

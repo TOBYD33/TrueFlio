@@ -67,7 +67,7 @@ export default function DashboardPage() {
         supabase.from('client_payments').select('amount, payment_date, created_at, notes, clients(name)').eq('org_id', orgId).gte('payment_date', sinceStr),
         supabase.from('budgets').select('amount, month, year').eq('org_id', orgId),
         supabase.from('clients').select('name, outstanding_balance').eq('org_id', orgId).eq('status', 'active').order('outstanding_balance', { ascending: false }),
-        supabase.from('reminders').select('id', { count: 'exact', head: true }).eq('org_id', orgId).eq('status', 'active'),
+        supabase.from('reminders').select('id', { count: 'exact', head: true }).eq('org_id', orgId).eq('status', 'active').is('archived_at', null),
         supabase.from('org_members').select('role, user_id, profiles(full_name)').eq('org_id', orgId),
       ])
 
