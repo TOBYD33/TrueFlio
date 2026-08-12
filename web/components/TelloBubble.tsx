@@ -6,6 +6,7 @@
 // calling /api/chat/message for all subsequent conversation.
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { Sparkles } from 'lucide-react'
 import { visibleCategories } from '@/lib/prompt-examples'
 import { getPlanConfig } from '@/lib/plans'
 import { fetchLivePlanConfig } from '@/lib/plans-client'
@@ -241,6 +242,29 @@ export function TelloBubble({ userId, orgId, isFirstTime, plan }: TelloBubblePro
         }
         .tello-bubble-pulsing {
           animation: tello-pulse 600ms ease-in-out 2;
+        }
+        /* Continuous idle "breathing" glow on the closed bubble — distinct
+           from tello-bubble-pulsing above (the twice-only login entrance
+           pulse, which still fires on its own and takes priority: the two
+           never run together, see the conditional className below). Kept
+           deliberately subtle — a few percent of scale and a soft glow,
+           GPU-cheap (transform + box-shadow only, no layout properties) so
+           it's safe to run continuously without jank. */
+        @keyframes tello-breathe {
+          0%, 100% { transform: scale(1);     box-shadow: 0 4px 20px rgba(108,99,255,0.4), 0 0 0 0  rgba(108,99,255,0.25); }
+          50%      { transform: scale(1.045); box-shadow: 0 4px 24px rgba(108,99,255,0.5), 0 0 0 8px rgba(108,99,255,0); }
+        }
+        .tello-bubble-breathing {
+          animation: tello-breathe 2800ms ease-in-out infinite;
+        }
+        /* Hover pauses the loop with a clean, deliberate scale-up instead
+           of fighting it — a JS-driven inline transform on hover would be
+           overwritten every frame by the running animation and never
+           actually show. Requirement 5: fully clickable at every point in
+           the cycle either way, this just makes the hover state legible. */
+        .tello-bubble-breathing:hover, .tello-bubble-pulsing:hover {
+          animation-play-state: paused;
+          transform: scale(1.08);
         }
         @keyframes tello-cursor {
           0%, 100% { opacity: 1; }
@@ -510,10 +534,14 @@ export function TelloBubble({ userId, orgId, isFirstTime, plan }: TelloBubblePro
         />
       )}
 
-      {/* The bubble itself */}
+      {/* The bubble itself — AI/sparkle icon, matching the same mark used
+          next to "True Assistant" in the sidebar and on the Home welcome
+          banner. Breathes continuously while closed (all plan tiers, no
+          gating); the twice-only login entrance pulse still takes
+          priority over the breathing animation when it fires. */}
       <button
         onClick={handleBubbleClick}
-        className={isPulsing ? 'tello-bubble-pulsing' : ''}
+        className={isPulsing ? 'tello-bubble-pulsing' : 'tello-bubble-breathing'}
         aria-label="Open Tello AI assistant"
         style={{
           position: 'fixed',
@@ -531,17 +559,10 @@ export function TelloBubble({ userId, orgId, isFirstTime, plan }: TelloBubblePro
           zIndex: 1001,
           boxShadow: '0 4px 20px rgba(108,99,255,0.4)',
           transition: 'transform 150ms ease, box-shadow 150ms ease',
-          fontSize: '20px',
-          fontWeight: '700',
           color: 'white',
-          fontFamily: 'Space Grotesk, system-ui, sans-serif',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)' }}
-        onMouseLeave={e => {
-          if (!isPulsing) e.currentTarget.style.transform = 'scale(1)'
         }}
       >
-        T
+        <Sparkles size={24} fill="white" strokeWidth={1.5} />
       </button>
     </>
   )

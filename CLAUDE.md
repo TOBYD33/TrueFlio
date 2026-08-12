@@ -2796,7 +2796,18 @@ through it step by step?"
 
 ### Animation Rules — What Not to Do
 
-1. Tello pulses exactly TWICE then stops, never a continuous loop
+1. The login ENTRANCE pulse (the more noticeable scale + glow burst,
+   `.tello-bubble-pulsing`) fires exactly TWICE then stops, never a
+   continuous loop, and never repeats again within the same session.
+   Separately, and update per the "Floating Tello Chat Icon — AI Logo +
+   Pulsating Animation" ticket: the CLOSED bubble now also has its own
+   distinct, always-on, deliberately subtle "breathing" animation
+   (`.tello-bubble-breathing`, ~2.8s cycle, transform + box-shadow only)
+   that runs continuously whenever Tello is closed and not actively doing
+   the login entrance pulse — for every plan tier, no gating. The two
+   never run at the same time; the entrance pulse takes priority when it
+   fires. Do not read rule 1 as forbidding this idle breathing loop, it
+   only ever applied to the entrance pulse.
 2. Auto-open happens ONCE per login session only, never on every
    page navigation within the same session
 3. The dismiss button (X) is always visible and always works
@@ -2824,13 +2835,21 @@ word by word with a 30-40ms per word interval for a natural reading pace.
 
 ### Tello's Visual Identity in the Chat Bubble
 
-- Circle avatar, Electric Violet background, white "T" lettermark
+- Circle avatar, Electric Violet background, white sparkle (Sparkles)
+  icon — updated from the original white "T" lettermark to match the
+  same AI/sparkle mark already used next to "True Assistant" in the
+  sidebar and on the Home welcome banner, for visual consistency across
+  every AI entry point in the product. No face, no mascot character —
+  clean and scalable either way.
 - Same rounded style as the existing channel badges
-- No face, no mascot character, just the T mark — clean and scalable
-- On hover: slight scale up (1.05x), smooth 150ms transition
-- Pulse animation: scale 1.0 → 1.12 → 1.0, twice, 600ms each,
+- On hover: pauses whatever animation is running and scales up (1.08x)
+- Login entrance pulse: scale 1.0 → 1.12 → 1.0, twice, 600ms each,
   ease-in-out, using the Electric Violet color with a soft outer glow
   in rgba(108,99,255,0.3)
+- Idle breathing (closed bubble, all other times, every plan tier):
+  scale 1.0 → 1.045 → 1.0, continuous, ~2.8s ease-in-out loop, transform
+  + box-shadow only — deliberately subtle, never the more noticeable
+  entrance-pulse motion
 
 ### Tello in the Mobile App (Phase 3)
 
