@@ -10,7 +10,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase-browser'
-import { Menu, Settings, User, LogOut, Sun, Moon, Download } from 'lucide-react'
+import { Menu, Settings, User, LogOut, Sun, Moon, Download, ChevronDown, FileArchive, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { ThemeProvider, useTheme, tone, BRAND } from './shared/theme'
 import { AppSidebar } from './shared/AppSidebar'
 import { PageToolsProvider, usePageToolsHeader } from './shared/PageTools'
@@ -58,6 +59,9 @@ function AppShellInner({ children, orgName, plan }: AppShellProps) {
   const [userId, setUserId] = useState<string | null>(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const [exportingAll, setExportingAll] = useState(false)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
 
   // Fetch current user's avatar + initials once
   useEffect(() => {
@@ -97,6 +101,31 @@ function AppShellInner({ children, orgName, plan }: AppShellProps) {
     if (dropdownOpen) document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [dropdownOpen])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false)
+      }
+    }
+    if (exportMenuOpen) document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [exportMenuOpen])
+
+  async function exportAllData() {
+    setExportMenuOpen(false)
+    setExportingAll(true)
+    try {
+      const res = await fetch('/api/export/all', { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) { toast.error(json.error ?? 'Could not start export'); return }
+      toast.success("We're preparing your export — you'll get a notification here when it's ready.")
+    } catch {
+      toast.error('Network error — could not start export')
+    } finally {
+      setExportingAll(false)
+    }
+  }
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -176,16 +205,57 @@ function AppShellInner({ children, orgName, plan }: AppShellProps) {
             </button>
           </div>
 
-          {/* Export CSV — enabled only when the page registers exportable data */}
-          <button
-            onClick={runExport}
-            disabled={!exportEnabled}
-            title={exportEnabled ? 'Export this page as CSV' : 'Nothing to export here yet'}
-            className="hidden sm:flex items-center gap-2 h-10 px-3.5 rounded-xl border text-sm font-medium transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ borderColor: t.border, color: t.text }}
-          >
-            <Download size={14} /> Export CSV
-          </button>
+          {/* Export dropdown — Quick Export (page-contextual, same
+              convention as the old single button) + Export All My Data
+              (new, account-wide, generated as a ZIP and delivered via the
+              notification bell). */}
+          <div className="relative hidden sm:block" ref={exportMenuRef}>
+            <button
+              onClick={() => setExportMenuOpen(v => !v)}
+              className="flex items-center gap-2 h-10 px-3.5 rounded-xl border text-sm font-medium"
+              style={{ borderColor: t.border, color: t.text }}
+            >
+              <Download size={14} /> Export <ChevronDown size={13} />
+            </button>
+
+            {exportMenuOpen && (
+              <div
+                className="absolute right-0 top-full mt-2 w-64 rounded-xl py-1 z-50 border"
+                style={{ background: t.surface, borderColor: t.border, boxShadow: '0 8px 24px rgba(10,10,15,0.16)' }}
+              >
+                <button
+                  onClick={() => { setExportMenuOpen(false); runExport() }}
+                  disabled={!exportEnabled}
+                  title={exportEnabled ? 'Export this page as CSV' : 'Nothing to export here yet'}
+                  className="w-full flex items-start gap-2.5 px-4 py-2.5 text-left disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Download size={15} className="mt-0.5 shrink-0" style={{ color: t.textDim }} />
+                  <span>
+                    <span className="block text-sm font-medium" style={{ color: t.text }}>Quick Export</span>
+                    <span className="block text-xs" style={{ color: t.textDim }}>
+                      {exportEnabled ? 'This page\'s data as one CSV, instantly' : 'Nothing to export on this page'}
+                    </span>
+                  </span>
+                </button>
+                <div className="my-1 border-t" style={{ borderColor: t.border }} />
+                <button
+                  onClick={exportAllData}
+                  disabled={exportingAll}
+                  className="w-full flex items-start gap-2.5 px-4 py-2.5 text-left disabled:opacity-60"
+                >
+                  {exportingAll
+                    ? <Loader2 size={15} className="mt-0.5 shrink-0 animate-spin" style={{ color: t.textDim }} />
+                    : <FileArchive size={15} className="mt-0.5 shrink-0" style={{ color: t.textDim }} />}
+                  <span>
+                    <span className="block text-sm font-medium" style={{ color: t.text }}>Export All My Data</span>
+                    <span className="block text-xs" style={{ color: t.textDim }}>
+                      Every CSV — transactions, clients, invoices, reminders, account info
+                    </span>
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
 
           <span
             className="hidden sm:inline text-xs font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full"
