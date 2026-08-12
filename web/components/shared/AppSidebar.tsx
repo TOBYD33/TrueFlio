@@ -4,6 +4,11 @@
 // /dashboard-concept design. Desktop: 72px icon rail <-> 248px labeled rail
 // with animated width. Mobile: slide-in drawer (expanded style). Includes
 // the Current Plan card at the bottom. Theme-aware via useTheme().
+//
+// Three-tier nav: 6 pinned top items (by frequency of use), a collapsible
+// "More" group for the remaining 9, and Settings pinned separately at the
+// very bottom, outside "More" — Settings should never be one click deeper
+// than everything else.
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -20,33 +25,50 @@ import {
   FolderKanban,
   TrendingUp,
   Bell,
+  Inbox,
   PiggyBank,
   Package,
   Landmark,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Sparkles,
+  MoreHorizontal,
   X,
 } from 'lucide-react'
 import { useTheme, tone, BRAND } from './theme'
 
-const navItems = [
+interface NavItem {
+  href: string
+  label: string
+  icon: typeof Home
+}
+
+// Requirement 1 — exact order.
+const topItems: NavItem[] = [
   { href: '/home', label: 'Home', icon: Home },
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/whatsapp', label: 'True Assistant', icon: Sparkles },
+  { href: '/income', label: 'Income', icon: TrendingUp },
   { href: '/receipts', label: 'Receipts', icon: Receipt },
+  { href: '/clients', label: 'Clients', icon: UserCircle2 },
+  { href: '/reminders', label: 'Reminders', icon: Bell },
+]
+
+// Requirement 2 — the remaining 9, including the new Notifications page.
+const moreItems: NavItem[] = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/inventory', label: 'Inventory', icon: Package },
   { href: '/budgets', label: 'Budgets', icon: PiggyBank },
-  { href: '/reminders', label: 'Reminders', icon: Bell },
-  { href: '/clients', label: 'Clients', icon: UserCircle2 },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
-  { href: '/income', label: 'Income', icon: TrendingUp },
   { href: '/reports', label: 'Reports', icon: BarChart3 },
   { href: '/tax', label: 'Tax Hub', icon: Landmark },
   { href: '/invoices', label: 'Invoices', icon: FileText },
   { href: '/settings/team', label: 'Team', icon: Users },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/notifications', label: 'Notifications', icon: Inbox },
 ]
+
+// Requirement 3 — pinned at the bottom, never inside "More".
+const settingsItem: NavItem = { href: '/settings', label: 'Settings', icon: Settings }
 
 const PLAN_INFO: Record<string, { label: string; desc: string }> = {
   free:        { label: 'Free',        desc: '10 receipts/mo · 1 user' },
@@ -109,39 +131,84 @@ function PlanCard({ plan, expanded }: { plan: string; expanded: boolean }) {
   )
 }
 
+function NavLink({ item, expanded, active, onNavigate }: { item: NavItem; expanded: boolean; active: boolean; onNavigate?: () => void }) {
+  const { dark } = useTheme()
+  const t = tone(dark)
+  const Icon = item.icon
+  return (
+    <Link
+      href={item.href}
+      title={item.label}
+      onClick={onNavigate}
+      className="flex items-center h-10 rounded-xl transition-colors shrink-0"
+      style={active ? { background: BRAND.violet, color: '#FFFFFF' } : { color: t.textDim }}
+    >
+      <span className="w-10 shrink-0 flex items-center justify-center">
+        <Icon size={18} />
+      </span>
+      <span
+        className="text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out"
+        style={{
+          opacity: expanded ? 1 : 0,
+          transform: expanded ? 'translateX(0)' : 'translateX(-8px)',
+          maxWidth: expanded ? 160 : 0,
+        }}
+      >
+        {item.label}
+      </span>
+    </Link>
+  )
+}
+
 function NavLinks({ expanded, onNavigate }: { expanded: boolean; onNavigate?: () => void }) {
   const pathname = usePathname()
   const { dark } = useTheme()
   const t = tone(dark)
+  // Session-only by default per the ticket ("remember during the session
+  // at minimum") — defaults open if the active route is already inside
+  // "More", so landing on e.g. /invoices via a direct link or refresh
+  // doesn't hide the very item that's currently selected.
+  const [moreOpen, setMoreOpen] = useState(() => moreItems.some(i => isActive(pathname, i.href)))
+
   return (
     <nav className="flex flex-col gap-1 overflow-y-auto overflow-x-hidden px-4">
-      {navItems.map(({ href, label, icon: Icon }) => {
-        const active = isActive(pathname, href)
-        return (
-          <Link
-            key={href}
-            href={href}
-            title={label}
-            onClick={onNavigate}
-            className="flex items-center h-10 rounded-xl transition-colors shrink-0"
-            style={active ? { background: BRAND.violet, color: '#FFFFFF' } : { color: t.textDim }}
-          >
-            <span className="w-10 shrink-0 flex items-center justify-center">
-              <Icon size={18} />
-            </span>
-            <span
-              className="text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out"
-              style={{
-                opacity: expanded ? 1 : 0,
-                transform: expanded ? 'translateX(0)' : 'translateX(-8px)',
-                maxWidth: expanded ? 160 : 0,
-              }}
-            >
-              {label}
-            </span>
-          </Link>
-        )
-      })}
+      {topItems.map(item => (
+        <NavLink key={item.href} item={item} expanded={expanded} active={isActive(pathname, item.href)} onNavigate={onNavigate} />
+      ))}
+
+      <button
+        onClick={() => setMoreOpen(v => !v)}
+        title="More"
+        className="flex items-center h-10 rounded-xl transition-colors shrink-0"
+        style={{ color: t.textDim }}
+      >
+        <span className="w-10 shrink-0 flex items-center justify-center">
+          <MoreHorizontal size={18} />
+        </span>
+        <span
+          className="flex-1 flex items-center justify-between text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out"
+          style={{
+            opacity: expanded ? 1 : 0,
+            transform: expanded ? 'translateX(0)' : 'translateX(-8px)',
+            maxWidth: expanded ? 160 : 0,
+          }}
+        >
+          More
+          <ChevronDown size={14} className="transition-transform duration-200" style={{ transform: moreOpen ? 'rotate(180deg)' : 'none' }} />
+        </span>
+      </button>
+
+      {moreOpen && (
+        <div className="flex flex-col gap-1">
+          {moreItems.map(item => (
+            <NavLink key={item.href} item={item} expanded={expanded} active={isActive(pathname, item.href)} onNavigate={onNavigate} />
+          ))}
+        </div>
+      )}
+
+      <div className="mt-1 pt-1 border-t" style={{ borderColor: t.border }}>
+        <NavLink item={settingsItem} expanded={expanded} active={isActive(pathname, settingsItem.href)} onNavigate={onNavigate} />
+      </div>
     </nav>
   )
 }
@@ -187,7 +254,7 @@ export function AppSidebar({ plan, mobileOpen, onMobileClose }: AppSidebarProps)
         <div className="md:hidden fixed inset-0 z-40">
           <div className="absolute inset-0 bg-black/50" onClick={onMobileClose} />
           <aside
-            className="absolute inset-y-0 left-0 w-[270px] flex flex-col justify-between py-4 border-r"
+            className="absolute inset-y-0 left-0 w-[270px] flex flex-col justify-between py-4 border-r overflow-y-auto"
             style={{ background: t.chrome, borderColor: t.border }}
           >
             <div>
