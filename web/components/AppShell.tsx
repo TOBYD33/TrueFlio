@@ -17,6 +17,8 @@ import { AppSidebar } from './shared/AppSidebar'
 import { PageToolsProvider, usePageToolsHeader } from './shared/PageTools'
 import { GlobalSearch } from './shared/GlobalSearch'
 import { NotificationBell } from './shared/NotificationBell'
+import { PWAInstallButton } from './shared/PWAInstallButton'
+import { registerServiceWorker } from '@/lib/push-client'
 
 interface AppShellProps {
   children: React.ReactNode
@@ -53,6 +55,13 @@ function AppShellInner({ children, orgName, plan }: AppShellProps) {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  // Registered unconditionally for every visitor, not just those who
+  // install the app — offline app-shell caching (Requirement 2) applies
+  // to normal browser tabs too, installation only adds push + standalone
+  // display on top of that.
+  useEffect(() => { registerServiceWorker() }, [])
+
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [initials, setInitials] = useState('?')
@@ -263,6 +272,8 @@ function AppShellInner({ children, orgName, plan }: AppShellProps) {
           >
             {planLabel}
           </span>
+
+          <PWAInstallButton recipientId={userId} />
 
           {userId && <NotificationBell recipientType="user" recipientId={userId} historyHref="/notifications" />}
 

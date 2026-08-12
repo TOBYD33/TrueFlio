@@ -4,8 +4,14 @@
 // client code — RLS has no insert policy for anon/authenticated on
 // purpose, exactly like admin_audit_log. Bot has its own mirror of these
 // helpers (bot/src/notifications.ts) since bot/web share no package.
+//
+// Every function here also fans out to Web Push (lib/web-push.ts) — the
+// PWA build's new delivery channel plugs in HERE, at the single source
+// every existing notification already flows through, rather than being a
+// separate parallel system callers would need to remember to also invoke.
 
 import { createClient } from '@supabase/supabase-js'
+import { sendPushToRecipient } from './web-push'
 
 export type NotificationCategory =
   | 'reminder' | 'invoice' | 'client' | 'billing' | 'system' | 'project' | 'admin'
@@ -39,6 +45,8 @@ export async function notifyUser(params: NotifyOneParams): Promise<void> {
     link: params.link ?? null,
   })
   if (error) console.error('notifyUser failed:', error.message)
+
+  await sendPushToRecipient({ recipientType: 'user', recipientId: params.recipientId, title: params.title, body: params.body, link: params.link })
 }
 
 // Fans out to every active (non-removed) member of the org — the whole
@@ -76,6 +84,10 @@ export async function notifyOrgMembers(params: {
 
   const { error } = await admin.from('notifications').insert(rows)
   if (error) console.error('notifyOrgMembers: insert failed:', error.message)
+
+  await Promise.all(members.map(m =>
+    sendPushToRecipient({ recipientType: 'user', recipientId: m.user_id, title: params.title, body: params.body, link: params.link })
+  ))
 }
 
 // Fans out to every platform admin (profiles.admin_role is not null) —
@@ -113,4 +125,8 @@ export async function notifyAdmins(params: {
 
   const { error } = await admin.from('notifications').insert(rows)
   if (error) console.error('notifyAdmins: insert failed:', error.message)
+
+  await Promise.all(admins.map(a =>
+    sendPushToRecipient({ recipientType: 'admin', recipientId: a.id, title: params.title, body: params.body, link: params.link })
+  ))
 }

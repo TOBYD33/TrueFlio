@@ -4,8 +4,15 @@
 // Bot and web are separate deployments with no shared package (same
 // precedent as plan-gates.ts / lib/plans.ts), so this is intentionally
 // duplicated — keep both behaviourally identical.
+//
+// Also fans out to Web Push (web-push-service.ts) — most notification
+// volume actually originates here (reminders firing, new leads, team
+// joins), so push has to be wired at this source too, not just the web
+// app's, or the majority of real notifications would never reach an
+// installed PWA's push channel.
 
 import { supabase } from './supabase'
+import { sendPushToRecipient } from './web-push-service'
 
 export type NotificationCategory =
   | 'reminder' | 'invoice' | 'client' | 'billing' | 'system' | 'project' | 'admin'
@@ -43,6 +50,10 @@ export async function notifyOrgMembers(params: {
 
   const { error } = await supabase.from('notifications').insert(rows)
   if (error) console.error('notifyOrgMembers: insert failed:', error.message)
+
+  await Promise.all(members.map(m =>
+    sendPushToRecipient({ recipientType: 'user', recipientId: m.user_id, title: params.title, body: params.body, link: params.link })
+  ))
 }
 
 // Fans out to every platform admin — used for new-signup / new-subscriber
@@ -77,4 +88,8 @@ export async function notifyAdmins(params: {
 
   const { error } = await supabase.from('notifications').insert(rows)
   if (error) console.error('notifyAdmins: insert failed:', error.message)
+
+  await Promise.all(admins.map((a: any) =>
+    sendPushToRecipient({ recipientType: 'admin', recipientId: a.id, title: params.title, body: params.body, link: params.link })
+  ))
 }

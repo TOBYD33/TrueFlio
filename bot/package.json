@@ -12,17 +12,19 @@
     "@types/ws": "^8.18.1",
     "axios": "latest",
     "dotenv": "latest",
-    "form-data": "^4.0.5",
     "express": "latest",
+    "form-data": "^4.0.5",
     "node-cron": "latest",
     "puppeteer": "^21.11.0",
     "twilio": "latest",
+    "web-push": "^3.6.7",
     "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/express": "latest",
     "@types/node": "latest",
     "@types/node-cron": "latest",
+    "@types/web-push": "^3.6.4",
     "ts-node": "latest",
     "typescript": "latest"
   }
